@@ -1,3 +1,7 @@
 [tools]
 python = "3.12"
 node = "20"
+
+[tasks.test]
+description = "Run tests"
+run = "./.venv/bin/pytest"

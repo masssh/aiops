@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-def get_llm(model: str = "gemini-1.5-pro", temperature: float = 0):
+def get_llm(model: str = "gemini-flash-latest", temperature: float = 0):
     """Initializes and returns the Gemini LLM."""
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
