@@ -129,6 +129,8 @@ interfaces:
 
 ## 前提知識・依存ツール
 
+- **Tool Management**: [mise](https://mise.jdx.dev/) を使用して Python (3.12+) および Node.js のバージョンを管理します。
+- **Project Configuration**: `pyproject.toml` を使用した現代的な Python プロジェクト構成を採用しています。
 - **LLM Backend**: Google Gemini (gemini-1.5-pro) を使用します。実行には `GOOGLE_API_KEY` が必要です。
 - **Workspace**: 解析対象のリポジトリはプロジェクトルートの `workspace/` ディレクトリ配下にクローンされます。
 - **LangGraph**: Agentのステート管理とワークフロー制御。
