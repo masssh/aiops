@@ -1,94 +1,91 @@
 import subprocess
 import os
 import logging
-from typing import Optional
+from typing import List, Optional
+from langchain_core.tools import tool
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from src.models.state import OverallState
+from src.utils.llm import get_llm
 
 logger = logging.getLogger(__name__)
 
 class GitHubManager:
-    """Handles GitHub repository operations using gh CLI and git."""
-    
-    def __init__(self, workspace_root: str = "workspace"):
-        self.workspace_root = workspace_root
-        if not os.path.exists(self.workspace_root):
-            os.makedirs(self.workspace_root)
-
+    """Execution logic for GitHub operations."""
     def _run_command(self, cmd: list[str], cwd: Optional[str] = None) -> str:
-        """Helper to run shell commands."""
         try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                cwd=cwd,
-                check=True
-            )
+            result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd, check=True)
             return result.stdout.strip()
         except subprocess.CalledProcessError as e:
-            error_msg = f"""Command '{' '.join(cmd)}' failed with exit code {e.returncode}
-Stdout: {e.stdout}
-Stderr: {e.stderr}"""
-            logger.error(error_msg)
-            raise RuntimeError(error_msg) from e
+            return f"Error: {e.stderr}"
 
-    def switch_auth(self, account: str) -> str:
-        """Switch gh CLI authentication to the specified account."""
-        logger.info(f"Switching GitHub account to: {account}")
-        return self._run_command(["gh", "auth", "switch", "--user", account])
+manager = GitHubManager()
 
-    def list_accounts(self) -> list[str]:
-        """List authenticated gh CLI accounts."""
-        output = self._run_command(["gh", "auth", "status"])
-        # Parsing gh auth status output can be tricky as it's meant for human consumption
-        # but usually it contains account names.
-        return output.splitlines()
+@tool
+def switch_github_auth(account: str) -> str:
+    """Switch gh CLI authentication to the specified account."""
+    logger.info(f"Switching GitHub account to: {account}")
+    return manager._run_command(["gh", "auth", "switch", "--user", account])
 
-    def clone_or_update(self, repo_id: str, local_path: str) -> str:
-        """Clone the repository if it doesn't exist, otherwise update it."""
-        # Ensure path is relative to current directory if not absolute
-        full_path = os.path.abspath(local_path)
-        
-        if os.path.exists(os.path.join(full_path, ".git")):
-            logger.info(f"Updating repository: {repo_id} at {local_path}")
-            # Using git pull to update
-            return self._run_command(["git", "pull"], cwd=full_path)
-        else:
-            logger.info(f"Cloning repository: {repo_id} to {local_path}")
-            # Ensure parent directory exists
-            os.makedirs(os.path.dirname(full_path), exist_ok=True)
-            return self._run_command(["gh", "repo", "clone", repo_id, full_path])
+@tool
+def clone_or_update_repo(repo_id: str, local_path: str) -> str:
+    """Clone the repository if it doesn't exist, otherwise update it using git pull."""
+    full_path = os.path.abspath(local_path)
+    if os.path.exists(os.path.join(full_path, ".git")):
+        logger.info(f"Updating repository: {repo_id} at {local_path}")
+        return manager._run_command(["git", "pull"], cwd=full_path)
+    else:
+        logger.info(f"Cloning repository: {repo_id} to {local_path}")
+        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+        return manager._run_command(["gh", "repo", "clone", repo_id, full_path])
 
 def github_agent(state: OverallState) -> OverallState:
     """
-    LangGraph node that ensures all repositories in the configuration are 
+    LangGraph node that uses an LLM to ensure all repositories are 
     cloned and up to date.
-    
-    Expects state['products_config']['repositories'] to contain:
-    - id: repository identifier (e.g., 'owner/repo')
-    - path: local path to clone into
-    - account: (optional) GitHub account to switch to before cloning
     """
-    manager = GitHubManager()
-    repositories = state.get("products_config", {}).get("repositories", [])
+    llm = get_llm()
+    tools = [switch_github_auth, clone_or_update_repo]
+    llm_with_tools = llm.bind_tools(tools)
     
-    for repo in repositories:
-        repo_id = repo.get("id")
-        path = repo.get("path")
-        account = repo.get("account")
+    repositories = state.get("products_config", {}).get("repositories", [])
+    if not repositories:
+        return state
+
+    system_msg = SystemMessage(content=(
+        "You are a GitHub automation assistant. Your task is to ensure all requested "
+        "repositories are cloned and up-to-date in the workspace. "
+        "1. For each repository, check if an 'account' is specified. If so, call 'switch_github_auth' first. "
+        "2. Then call 'clone_or_update_repo' with the repository 'id' and 'path'. "
+        "Process each repository configuration completely before moving to the next one."
+    ))
+    
+    repo_info = "\n".join([str(r) for r in repositories])
+    prompt = f"Please sync the following repositories based on their configuration:\n{repo_info}"
+    
+    messages = [system_msg, HumanMessage(content=prompt)]
+    
+    # Tool execution loop
+    for _ in range(15):  # Max iterations to prevent infinite loops
+        ai_msg = llm_with_tools.invoke(messages)
+        messages.append(ai_msg)
         
-        if account:
-            try:
-                manager.switch_auth(account)
-            except Exception as e:
-                logger.warning(f"Failed to switch to account {account}: {e}")
-        
-        if repo_id and path:
-            try:
-                manager.clone_or_update(repo_id, path)
-            except Exception as e:
-                logger.error(f"Failed to sync repository {repo_id}: {e}")
-                # We might want to stop or continue depending on the requirements.
-                # For now, we continue to other repositories.
+        if not ai_msg.tool_calls:
+            break
+            
+        for tool_call in ai_msg.tool_calls:
+            tool_name = tool_call["name"]
+            tool_args = tool_call["args"]
+            
+            if tool_name == "switch_github_auth":
+                result = switch_github_auth.invoke(tool_args)
+            elif tool_name == "clone_or_update_repo":
+                result = clone_or_update_repo.invoke(tool_args)
+            else:
+                result = f"Error: Tool {tool_name} not found."
                 
+            messages.append(ToolMessage(
+                content=str(result),
+                tool_call_id=tool_call["id"]
+            ))
+            
     return state
