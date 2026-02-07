@@ -45,11 +45,17 @@ def clone_or_update_repo(repo_id: str, local_path: str, url: Optional[str] = Non
             logger.info(f"Cloning repository: {repo_id} to {local_path}")
             return github_agent_logic._run_command(["gh", "repo", "clone", repo_id, full_path])
 
-def github_agent(state: OverallState) -> OverallState:
+from langchain_core.runnables import RunnableConfig
+
+def github_agent(state: OverallState, config: RunnableConfig = None) -> OverallState:
     """
     LangGraph node that uses an LLM to ensure all repositories are 
     cloned and up to date.
     """
+    # Get custom prompt from config if provided
+    configurable = config.get("configurable", {}) if config else {}
+    custom_prompt = configurable.get("github_agent_prompt")
+
     llm = get_llm()
     tools = [switch_github_auth, clone_or_update_repo]
     llm_with_tools = llm.bind_tools(tools)
@@ -67,7 +73,11 @@ def github_agent(state: OverallState) -> OverallState:
     ))
     
     repo_info = "\n".join([str(r) for r in repositories])
-    prompt = f"Please sync the following repositories based on their configuration:\n{repo_info}"
+    
+    if custom_prompt:
+        prompt = f"{custom_prompt}\n\nRepository Configuration:\n{repo_info}"
+    else:
+        prompt = f"Please sync the following repositories based on their configuration:\n{repo_info}"
     
     messages = [system_msg, HumanMessage(content=prompt)]
     

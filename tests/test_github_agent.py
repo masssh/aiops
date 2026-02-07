@@ -34,7 +34,9 @@ def test_github_agent_real_llm_execution():
         # We also mock directory checks to simulate a new clone
         with patch("os.path.exists", return_value=False):
             with patch("os.makedirs"):
-                final_state = github_agent(state)
+                # Pass prompt via configurable
+                config = {"configurable": {"github_agent_prompt": "Force sync everything even if it exists."}}
+                final_state = github_agent(state, config=config)
             
     # Verification
     assert final_state == state
@@ -43,7 +45,6 @@ def test_github_agent_real_llm_execution():
     # 1. switch_github_auth
     # 2. clone_or_update_repo
     
-    # We check if the mocked run_command was called with appropriate keywords
     called_commands = [call[0][0] for call in mock_run.call_args_list]
     
     auth_called = any("auth" in cmd and "test-account" in cmd for cmd in called_commands)
@@ -52,3 +53,36 @@ def test_github_agent_real_llm_execution():
     
     assert auth_called, f"LLM did not call switch_github_auth. Commands called: {called_commands}"
     assert clone_called, f"LLM did not call clone_or_update_repo with URL. Commands called: {called_commands}"
+
+def test_github_agent_custom_prompt_filtering():
+    """
+    Tests if the LLM respects a custom prompt that tells it to filter repositories.
+    """
+    if not os.getenv("GOOGLE_API_KEY"):
+        pytest.skip("GOOGLE_API_KEY not found. Skipping real LLM test.")
+
+    # LLM instruction to skip this specific account
+    custom_instruction = "If the account is 'skip-user', do NOT call any tools for that repository."
+    
+    state: OverallState = {
+        "products_config": {
+            "repositories": [
+                {
+                    "id": "test-owner/repo-to-skip", 
+                    "path": "workspace/skip-repo", 
+                    "account": "skip-user"
+                }
+            ]
+        },
+        "results": {}
+    }
+    
+    config = {"configurable": {"github_agent_prompt": custom_instruction}}
+    
+    with patch("src.agents.github_agent.github_agent_logic._run_command") as mock_run:
+        with patch("os.path.exists", return_value=False):
+            with patch("os.makedirs"):
+                github_agent(state, config=config)
+            
+    # LLM should have followed the instruction and NOT called the tools
+    assert mock_run.call_count == 0, f"LLM ignored skip instruction. Commands called: {[call[0][0] for call in mock_run.call_args_list]}"

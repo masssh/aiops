@@ -17,6 +17,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="AIOps Repository Analysis System")
     parser.add_argument("--agent", type=str, help="Specific agent to run (e.g., github, hello)")
+    parser.add_argument("--prompt", type=str, help="Custom prompt for the agent")
     args = parser.parse_args()
 
     try:
@@ -29,16 +30,13 @@ def main():
             "results": {}
         }
         
+        # Prepare graph config with configurable parameters
+        graph_config = {"configurable": {"github_agent_prompt": args.prompt}} if args.prompt else {}
+        
         graph = create_analysis_graph()
         
         if args.agent:
             print(f"Running specific agent: {args.agent}")
-            # To run a specific node in LangGraph, we can use the graph's nodes directly
-            # or invoke with a config that targets the node if supported, 
-            # but for a simple "run this node", we can call the agent function.
-            
-            # Retrieve node from the compiled graph's internal structure if possible,
-            # or better, just define a mapping.
             from src.agents.github_agent import github_agent
             from src.agents.hello_agent import hello_agent
             
@@ -48,14 +46,15 @@ def main():
             }
             
             if args.agent in agent_map:
-                final_state = agent_map[args.agent](initial_state)
+                # Call agent with state and config
+                final_state = agent_map[args.agent](initial_state, config=graph_config)
                 print(f"Agent {args.agent} completed.")
             else:
                 print(f"Error: Agent '{args.agent}' not found. Available agents: {list(agent_map.keys())}")
                 sys.exit(1)
         else:
             print("Running full analysis graph.")
-            final_state = graph.invoke(initial_state)
+            final_state = graph.invoke(initial_state, config=graph_config)
             print("Analysis complete.")
         
     except Exception as e:
