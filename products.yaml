@@ -1,0 +1,10 @@
+repositories:
+  - id: spring-petclinic-cloud
+    name: Spring PetClinic Cloud
+    path: workspace/spring-petclinic-cloud
+
+products:
+  - id: petclinic
+    name: Spring PetClinic Microservices
+    repository_ids:
+      - spring-petclinic-cloud
