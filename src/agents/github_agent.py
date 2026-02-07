@@ -9,7 +9,7 @@ from src.utils.llm import get_llm
 
 logger = logging.getLogger(__name__)
 
-class GitHubManager:
+class GitHubAgent:
     """Execution logic for GitHub operations."""
     def _run_command(self, cmd: list[str], cwd: Optional[str] = None) -> str:
         try:
@@ -18,13 +18,13 @@ class GitHubManager:
         except subprocess.CalledProcessError as e:
             return f"Error: {e.stderr}"
 
-manager = GitHubManager()
+github_agent_logic = GitHubAgent()
 
 @tool
 def switch_github_auth(account: str) -> str:
     """Switch gh CLI authentication to the specified account."""
     logger.info(f"Switching GitHub account to: {account}")
-    return manager._run_command(["gh", "auth", "switch", "--user", account])
+    return github_agent_logic._run_command(["gh", "auth", "switch", "--user", account])
 
 @tool
 def clone_or_update_repo(repo_id: str, local_path: str) -> str:
@@ -32,11 +32,11 @@ def clone_or_update_repo(repo_id: str, local_path: str) -> str:
     full_path = os.path.abspath(local_path)
     if os.path.exists(os.path.join(full_path, ".git")):
         logger.info(f"Updating repository: {repo_id} at {local_path}")
-        return manager._run_command(["git", "pull"], cwd=full_path)
+        return github_agent_logic._run_command(["git", "pull"], cwd=full_path)
     else:
         logger.info(f"Cloning repository: {repo_id} to {local_path}")
         os.makedirs(os.path.dirname(full_path), exist_ok=True)
-        return manager._run_command(["gh", "repo", "clone", repo_id, full_path])
+        return github_agent_logic._run_command(["gh", "repo", "clone", repo_id, full_path])
 
 def github_agent(state: OverallState) -> OverallState:
     """

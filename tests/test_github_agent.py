@@ -27,7 +27,7 @@ def test_github_agent_real_llm_execution():
     }
     
     # Mock only the command runner so we don't actually hit GitHub
-    with patch("src.agents.github_agent.manager._run_command") as mock_run:
+    with patch("src.agents.github_agent.github_agent_logic._run_command") as mock_run:
         mock_run.return_value = "Success (Mocked Output)"
         
         # We also mock directory checks to simulate a new clone
