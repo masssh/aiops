@@ -27,16 +27,23 @@ def switch_github_auth(account: str) -> str:
     return github_agent_logic._run_command(["gh", "auth", "switch", "--user", account])
 
 @tool
-def clone_or_update_repo(repo_id: str, local_path: str) -> str:
-    """Clone the repository if it doesn't exist, otherwise update it using git pull."""
+def clone_or_update_repo(repo_id: str, local_path: str, url: Optional[str] = None) -> str:
+    """
+    Clone the repository if it doesn't exist, otherwise update it using git pull.
+    If 'url' is provided, it will be used for cloning. Otherwise, 'repo_id' is used with 'gh repo clone'.
+    """
     full_path = os.path.abspath(local_path)
     if os.path.exists(os.path.join(full_path, ".git")):
-        logger.info(f"Updating repository: {repo_id} at {local_path}")
+        logger.info(f"Updating repository at {local_path}")
         return github_agent_logic._run_command(["git", "pull"], cwd=full_path)
     else:
-        logger.info(f"Cloning repository: {repo_id} to {local_path}")
         os.makedirs(os.path.dirname(full_path), exist_ok=True)
-        return github_agent_logic._run_command(["gh", "repo", "clone", repo_id, full_path])
+        if url:
+            logger.info(f"Cloning repository from URL: {url} to {local_path}")
+            return github_agent_logic._run_command(["git", "clone", url, full_path])
+        else:
+            logger.info(f"Cloning repository: {repo_id} to {local_path}")
+            return github_agent_logic._run_command(["gh", "repo", "clone", repo_id, full_path])
 
 def github_agent(state: OverallState) -> OverallState:
     """
@@ -55,7 +62,7 @@ def github_agent(state: OverallState) -> OverallState:
         "You are a GitHub automation assistant. Your task is to ensure all requested "
         "repositories are cloned and up-to-date in the workspace. "
         "1. For each repository, check if an 'account' is specified. If so, call 'switch_github_auth' first. "
-        "2. Then call 'clone_or_update_repo' with the repository 'id' and 'path'. "
+        "2. Then call 'clone_or_update_repo' with the repository 'id', 'path', and 'url' (if provided). "
         "Process each repository configuration completely before moving to the next one."
     ))
     

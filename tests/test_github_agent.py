@@ -18,6 +18,7 @@ def test_github_agent_real_llm_execution():
             "repositories": [
                 {
                     "id": "test-owner/test-repo", 
+                    "url": "https://github.com/test-owner/test-repo.git",
                     "path": "workspace/test-repo", 
                     "account": "test-account"
                 }
@@ -46,7 +47,8 @@ def test_github_agent_real_llm_execution():
     called_commands = [call[0][0] for call in mock_run.call_args_list]
     
     auth_called = any("auth" in cmd and "test-account" in cmd for cmd in called_commands)
-    clone_called = any("clone" in cmd and "test-owner/test-repo" in cmd for cmd in called_commands)
+    # Check for git clone with URL
+    clone_called = any("clone" in cmd and "https://github.com/test-owner/test-repo.git" in cmd for cmd in called_commands)
     
     assert auth_called, f"LLM did not call switch_github_auth. Commands called: {called_commands}"
-    assert clone_called, f"LLM did not call clone_or_update_repo. Commands called: {called_commands}"
+    assert clone_called, f"LLM did not call clone_or_update_repo with URL. Commands called: {called_commands}"

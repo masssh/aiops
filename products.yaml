@@ -1,6 +1,7 @@
 repositories:
   - id: spring-petclinic-cloud
     name: Spring PetClinic Cloud
+    url: https://github.com/spring-petclinic/spring-petclinic-cloud.git
     path: workspace/spring-petclinic-cloud
 
 products:
