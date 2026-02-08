@@ -18,11 +18,12 @@ def main():
     parser = argparse.ArgumentParser(description="AIOps Repository Analysis System")
     parser.add_argument("--agent", type=str, help="Specific agent to run (e.g., github, hello)")
     parser.add_argument("--prompt", type=str, help="Custom prompt for the agent")
+    parser.add_argument("--config", type=str, default="products.yaml", help="Path to products.yaml config file")
     args = parser.parse_args()
 
     try:
-        config = load_products_config()
-        print(f"Loaded config with {len(config.get('products', []))} products.")
+        config = load_products_config(args.config)
+        print(f"Loaded config from {args.config} with {len(config.get('products', []))} products.")
         
         # Initialize state
         initial_state: OverallState = {

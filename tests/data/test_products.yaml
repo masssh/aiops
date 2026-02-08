@@ -1,0 +1,10 @@
+repositories:
+  - id: "test-repo"
+    name: "Test Repo"
+    path: "workspace/test-repo"
+
+products:
+  - id: "test-product"
+    name: "Test Product"
+    repository_ids:
+      - "test-repo"
