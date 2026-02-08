@@ -39,17 +39,16 @@
 ## 出力ディレクトリ構造
 
 ```text
-analysis_results/
-└── {product_name}/
-    ├── {repository_name}/
-    │   ├── repo_summary.yaml
-    │   └── {project_id}/
-    │       ├── tech_stack.yaml
-    │       ├── database.yaml
-    │       ├── dependencies.yaml
-    │       ├── interfaces.yaml
-    │       └── project_summary.yaml
-    └── summary.yaml
+metadata/
+├── {repository_name}/
+│   ├── repo_summary.yaml
+│   └── {project_id}/
+│       ├── tech_stack.yaml
+│       ├── database.yaml
+│       ├── dependencies.yaml
+│       ├── interfaces.yaml
+│       └── project_summary.yaml
+└── {product_name}_summary.yaml
 ```
 
 ## 入力YAMLスキーマ定義

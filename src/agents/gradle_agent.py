@@ -28,6 +28,8 @@ def read_gradle_file(path: str) -> str:
     except Exception as e:
         return f"Error reading file {path}: {str(e)}"
 
+from src.utils.analysis import save_yaml
+
 @tool
 def save_analysis_result(repo_path: str, analysis: Dict[str, Any]) -> str:
     """Saves the analysis result to a YAML file in the project root's metadata directory."""
@@ -35,14 +37,7 @@ def save_analysis_result(repo_path: str, analysis: Dict[str, Any]) -> str:
         # Get repository name from path (e.g., workspace/gradle-masterclass -> gradle-masterclass)
         repo_name = os.path.basename(repo_path)
         
-        # Define project root metadata directory
-        project_root = os.getcwd()
-        output_dir = os.path.join(project_root, "metadata", repo_name)
-        
-        os.makedirs(output_dir, exist_ok=True)
-        output_file = os.path.join(output_dir, "gradle_analysis.yaml")
-        with open(output_file, "w") as f:
-            yaml.dump(analysis, f, default_flow_style=False)
+        output_file = save_yaml(analysis, repo_name, "gradle_analysis.yaml")
         return f"Analysis saved to {output_file}"
     except Exception as e:
         return f"Error saving analysis: {str(e)}"

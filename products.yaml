@@ -16,4 +16,4 @@ products:
   - id: gradle-test
     name: Gradle Test Product
     repository_ids:
-      - tkgregory/gradle-mult i-project-masterclass
+      - tkgregory/gradle-multi-project-masterclass
