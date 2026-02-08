@@ -48,7 +48,27 @@ python3 -m pytest tests/test_hello_agent.py
 2. 解析を実行します（※メインロジック実装中）。
 
 ```bash
+
 python3 src/main.py
+
 ```
+
+
+
+## LangGraph Studio
+
+
+
+このプロジェクトは [LangGraph Studio](https://github.com/langchain-ai/langgraph-studio) をサポートしています。
+
+
+
+1. [LangGraph Studio プレビュー版](https://github.com/langchain-ai/langgraph-studio?tab=readme-ov-file#download) をインストールします。
+
+2. アプリを起動し、このプロジェクトのディレクトリを選択します。
+
+3. `langgraph.json` の設定に基づいてグラフが読み込まれ、視覚的なデバッグやトレースが可能になります。
+
+
 
 詳細な設計思想については [GEMINI.md](GEMINI.md) を参照してください。
