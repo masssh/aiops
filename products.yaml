@@ -1,11 +1,11 @@
 repositories:
-  - id: tkgregory/gradle-multi-project-masterclass
+  - id: springboot-microservices
     name: Gradle Project Sample
-    url: https://github.com/tkgregory/gradle-multi-project-masterclass.git
-    path: workspace/gradle-masterclass
+    url: https://github.com/ashishlahoti/springboot-microservices
+    path: workspace/springboot-microservices
 
 products:
-  - id: gradle-project-sample
-    name: Gradle Test Product
+  - id: springboot-microservices
+    name: Gradle Sample Product
     repository_ids:
-      - tkgregory/gradle-multi-project-masterclass
+      - springboot-microservices
