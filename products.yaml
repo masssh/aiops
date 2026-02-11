@@ -1,19 +1,11 @@
 repositories:
-  - id: spring-petclinic-cloud
-    name: Spring PetClinic Cloud
-    url: https://github.com/spring-petclinic/spring-petclinic-cloud.git
-    path: workspace/spring-petclinic-cloud
   - id: tkgregory/gradle-multi-project-masterclass
-    name: Gradle Masterclass
+    name: Gradle Project Sample
     url: https://github.com/tkgregory/gradle-multi-project-masterclass.git
     path: workspace/gradle-masterclass
 
 products:
-  - id: petclinic
-    name: Spring PetClinic Microservices
-    repository_ids:
-      - spring-petclinic-cloud
-  - id: gradle-test
+  - id: gradle-project-sample
     name: Gradle Test Product
     repository_ids:
       - tkgregory/gradle-multi-project-masterclass
