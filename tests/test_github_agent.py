@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import patch
+from loguru import logger
 from src.agents.github_agent import (
     github_agent,
     git_status,
@@ -49,7 +50,7 @@ def test_github_agent_repository_sync():
 
                     called_commands = [call[0][0] for call in mock_run.call_args_list]
                     assert len(called_commands) > 0, f"LLM did not call any tools. Commands called: {called_commands}"
-                    print(f"✓ Repository sync test passed. Commands called: {called_commands}")
+                    logger.info(f"✓ Repository sync test passed. Commands called: {called_commands}")
 
                 except Exception as e:
                     error_msg = str(e)
@@ -98,7 +99,7 @@ def test_github_agent_custom_workflow():
 
             called_commands = [call[0][0] for call in mock_run.call_args_list]
             assert len(called_commands) > 0, "LLM should have called tools for the workflow"
-            print(f"✓ Custom workflow test passed. Commands called: {called_commands}")
+            logger.info(f"✓ Custom workflow test passed. Commands called: {called_commands}")
 
         except Exception as e:
             error_msg = str(e)

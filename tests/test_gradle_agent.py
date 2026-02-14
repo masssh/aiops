@@ -1,6 +1,7 @@
 import pytest
 import os
 from pathlib import Path
+from loguru import logger
 from src.agents.gradle_agent import (
     gradle_agent,
     gradle_build,
@@ -34,8 +35,8 @@ def test_detect_required_java_version(test_repo_path):
 
     assert result is not None
     assert "java" in result.lower() or "openjdk" in result.lower()
-    print(f"✓ Java version detection test passed")
-    print(f"  Detected: {result[:100]}")
+    logger.info(f"✓ Java version detection test passed")
+    logger.info(f"  Detected: {result[:100]}")
 
 
 def test_ensure_gradlew(test_repo_path):
@@ -43,8 +44,8 @@ def test_ensure_gradlew(test_repo_path):
     result = ensure_gradlew.invoke({"project_path": test_repo_path})
 
     assert result is not None
-    print(f"✓ Ensure gradlew test passed")
-    print(f"  Result: {result[:200]}")
+    logger.info(f"✓ Ensure gradlew test passed")
+    logger.info(f"  Result: {result[:200]}")
 
     # Verify gradlew exists after the operation
     gradlew_path = Path(test_repo_path) / "gradlew"
@@ -62,8 +63,8 @@ def test_gradlew_version_tool(test_repo_path):
 
     assert result is not None
     assert "Gradle" in result
-    print(f"✓ Gradle version test passed")
-    print(f"  Version info: {result[:100]}")
+    logger.info(f"✓ Gradle version test passed")
+    logger.info(f"  Version info: {result[:100]}")
 
 
 def test_gradle_tasks_tool(test_repo_path):
@@ -78,7 +79,7 @@ def test_gradle_tasks_tool(test_repo_path):
 
     assert result is not None
     assert "build" in result.lower() or "tasks" in result.lower()
-    print(f"✓ Gradle tasks test passed")
+    logger.info(f"✓ Gradle tasks test passed")
 
 
 def test_gradle_build_tool(test_repo_path):
@@ -94,8 +95,8 @@ def test_gradle_build_tool(test_repo_path):
 
     assert result is not None
     # Build might succeed or fail, but we should get a result
-    print(f"✓ Gradle build test completed")
-    print(f"  Build result: {result[:200]}")
+    logger.info(f"✓ Gradle build test completed")
+    logger.info(f"  Build result: {result[:200]}")
 
 
 def test_gradle_dependencies_tool(test_repo_path):
@@ -110,8 +111,8 @@ def test_gradle_dependencies_tool(test_repo_path):
     })
 
     assert result is not None
-    print(f"✓ Gradle dependencies test passed")
-    print(f"  Dependencies info: {result[:200]}")
+    logger.info(f"✓ Gradle dependencies test passed")
+    logger.info(f"  Dependencies info: {result[:200]}")
 
 
 def test_gradle_agent_basic_workflow(test_repo_path):
@@ -146,7 +147,7 @@ def test_gradle_agent_basic_workflow(test_repo_path):
     try:
         final_state = gradle_agent(state, config=config)
         assert final_state == state
-        print(f"✓ Gradle agent basic workflow test passed")
+        logger.info(f"✓ Gradle agent basic workflow test passed")
 
     except Exception as e:
         error_msg = str(e)
@@ -186,7 +187,7 @@ def test_gradle_agent_with_mise_setup(test_repo_path):
     try:
         final_state = gradle_agent(state, config=config)
         assert final_state == state
-        print(f"✓ Gradle agent with mise setup test passed")
+        logger.info(f"✓ Gradle agent with mise setup test passed")
 
     except Exception as e:
         error_msg = str(e)
@@ -210,7 +211,7 @@ def test_setup_mise_java(test_repo_path):
         })
 
         assert result is not None
-        print(f"✓ Mise Java setup test passed")
-        print(f"  Result: {result[:200]}")
+        logger.info(f"✓ Mise Java setup test passed")
+        logger.info(f"  Result: {result[:200]}")
     except Exception as e:
         pytest.skip(f"Mise not available or Java 17 not installed: {e}")
