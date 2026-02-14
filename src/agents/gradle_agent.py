@@ -207,19 +207,19 @@ def gradle_tasks(project_path: str, all_tasks: bool = False, group: Optional[str
     return run_command(cmd, cwd=project_path)
 
 @tool
-def gradle_run_task(project_path: str, task_name: str, args: Optional[list[str]] = None) -> str:
+def gradle_run_task(project_path: str, task_name: str, additional_args: str = "") -> str:
     """
     Run a specific Gradle task.
 
     Args:
         project_path: Path to the Gradle project
         task_name: Task name to execute (e.g., "build", "test", "clean")
-        args: Additional arguments to pass to the task (e.g., ["--info", "--stacktrace"])
+        additional_args: Additional arguments to pass to the task as a space-separated string (e.g., "--info --stacktrace")
     """
     logger.info(f"Running Gradle task '{task_name}' in {project_path}")
     cmd = ["./gradlew", task_name]
-    if args:
-        cmd.extend(args)
+    if additional_args:
+        cmd.extend(additional_args.split())
     return run_command(cmd, cwd=project_path)
 
 # ============================================================================
