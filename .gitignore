@@ -45,6 +45,7 @@ jupyter_config.py
 # Project specific
 workspace/
 analysis_results/
+logs/
 /Users/masssh/.gemini/tmp/
 
 .langgraph_api
