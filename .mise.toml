@@ -4,3 +4,7 @@ python = "3.11"
 [tasks.test]
 description = "Run tests"
 run = "./.venv/bin/pytest"
+
+[tasks.typecheck]
+description = "Run mypy type checker"
+run = "./.venv/bin/mypy src/"
