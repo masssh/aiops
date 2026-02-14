@@ -5,7 +5,7 @@ from typing import List, Optional
 from langchain_core.tools import tool
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from src.models.state import OverallState
-from src.utils.llm import get_llm
+from src.utils.llm import get_llm, Provider
 
 logger = logging.getLogger(__name__)
 
@@ -49,14 +49,19 @@ from langchain_core.runnables import RunnableConfig
 
 def github_agent(state: OverallState, config: RunnableConfig = None) -> OverallState:
     """
-    LangGraph node that uses an LLM to ensure all repositories are 
+    LangGraph node that uses an LLM to ensure all repositories are
     cloned and up to date.
+
+    Can be configured via RunnableConfig:
+        config = {"configurable": {"provider": "ollama", "model": "qwen2.5-coder:7b"}}
     """
-    # Get custom prompt from config if provided
+    # Get custom prompt and LLM config from config if provided
     configurable = config.get("configurable", {}) if config else {}
     custom_prompt = configurable.get("github_agent_prompt")
+    provider: Provider = configurable.get("provider", "ollama")
+    model: str | None = configurable.get("model", None)
 
-    llm = get_llm()
+    llm = get_llm(provider=provider, model=model)
     tools = [switch_github_auth, clone_or_update_repo]
     llm_with_tools = llm.bind_tools(tools)
     

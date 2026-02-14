@@ -70,7 +70,7 @@ def get_llm(
 
     elif provider == "ollama":
         return ChatOllama(
-            model=model or "qwen2.5-coder:7b",
+            model=model or "qwen3:8b",
             temperature=temperature
         )
 

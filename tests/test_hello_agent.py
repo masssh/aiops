@@ -14,7 +14,7 @@ def test_hello_agent_with_ollama():
     config = {
         "configurable": {
             "provider": "ollama",
-            "model": "qwen2.5-coder:7b"
+            "model": "qwen3:8b"
         }
     }
 
