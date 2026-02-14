@@ -595,7 +595,7 @@ def github_agent(state: OverallState, config: Optional[RunnableConfig] = None) -
         if repositories:
             repo_info = "\n".join([str(r) for r in repositories])
             user_prompt += f"\n\nRepository Configuration:\n{repo_info}"
-        agent_logger.info(f"Using custom prompt: {custom_prompt[:100]}...")
+        agent_logger.info(f"Using custom prompt: {custom_prompt}")
     else:
         # Default behavior: repository sync
         if repositories:

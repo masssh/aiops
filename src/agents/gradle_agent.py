@@ -442,7 +442,7 @@ def gradle_agent(state: OverallState, config: Optional[RunnableConfig] = None) -
     if custom_prompt:
         # Custom prompt provided by the caller
         user_prompt = custom_prompt
-        agent_logger.info(f"Using custom prompt: {custom_prompt[:100]}...")
+        agent_logger.info(f"Using custom prompt: {custom_prompt}")
     else:
         # Default behavior: ready for Gradle operations
         user_prompt = "Ready to assist with Gradle build operations."

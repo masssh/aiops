@@ -128,7 +128,7 @@ class BaseCommandAgent:
             User prompt string
         """
         if self.custom_prompt:
-            self.agent_logger.info(f"Using custom prompt: {self.custom_prompt[:100]}...")
+            self.agent_logger.info(f"Using custom prompt: {self.custom_prompt}")
             return self.custom_prompt
         else:
             prompt = self.get_default_prompt()
