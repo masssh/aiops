@@ -42,7 +42,19 @@ def run_command(cmd: list[str], cwd: Optional[str] = None) -> str:
 
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd, check=True)
-        output = result.stdout.strip() if result.stdout.strip() else "Command executed successfully."
+        # Combine stdout and stderr (some commands like 'java -version' output to stderr)
+        stdout = result.stdout.strip()
+        stderr = result.stderr.strip()
+
+        if stdout and stderr:
+            output = f"{stdout}\n{stderr}"
+        elif stdout:
+            output = stdout
+        elif stderr:
+            output = stderr
+        else:
+            output = "Command executed successfully."
+
         logger.info(f"Command output: {output}")
         return output
     except subprocess.CalledProcessError as e:

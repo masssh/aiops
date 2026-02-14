@@ -12,6 +12,73 @@ from src.utils.command import run_command
 logger = logging.getLogger(__name__)
 
 # ============================================================================
+# Java Environment Operations
+# ============================================================================
+
+@tool
+def detect_java_version(project_path: str) -> str:
+    """
+    Detect the Java version currently configured for the project.
+
+    Args:
+        project_path: Path to the Gradle project
+    """
+    logger.info(f"Detecting Java version in {project_path}")
+    return run_command(["java", "-version"], cwd=project_path)
+
+@tool
+def setup_mise_java(project_path: str, java_version: str) -> str:
+    """
+    Set up Java version using mise for the project.
+
+    Args:
+        project_path: Path to the Gradle project
+        java_version: Java version to use (e.g., "17", "21", "corretto-17")
+    """
+    logger.info(f"Setting up Java {java_version} using mise in {project_path}")
+    # Use mise to set local Java version
+    result = run_command(["mise", "use", f"java@{java_version}"], cwd=project_path)
+    # Verify the installation
+    verify_result = run_command(["mise", "current", "java"], cwd=project_path)
+    return f"{result}\n\nVerification:\n{verify_result}"
+
+@tool
+def ensure_gradlew(project_path: str) -> str:
+    """
+    Ensure Gradle Wrapper exists in the project. If not, create it.
+
+    Args:
+        project_path: Path to the Gradle project
+    """
+    logger.info(f"Ensuring Gradle Wrapper exists in {project_path}")
+
+    gradlew_path = os.path.join(project_path, "gradlew")
+    if os.path.exists(gradlew_path):
+        return f"Gradle Wrapper already exists at {gradlew_path}"
+
+    # Check if gradle wrapper directory exists
+    wrapper_dir = os.path.join(project_path, "gradle", "wrapper")
+    if not os.path.exists(wrapper_dir):
+        return f"Error: gradle/wrapper directory not found in {project_path}. Cannot create wrapper."
+
+    # Use gradle wrapper task to generate gradlew scripts
+    logger.info("Gradle Wrapper not found. Attempting to create it using gradle wrapper task...")
+
+    # Try using system gradle if available
+    try:
+        result = run_command(["gradle", "wrapper"], cwd=project_path)
+
+        # Verify gradlew was created
+        if os.path.exists(gradlew_path):
+            # Make it executable
+            os.chmod(gradlew_path, 0o755)
+            return f"Successfully created Gradle Wrapper:\n{result}"
+        else:
+            return f"Gradle wrapper task executed but gradlew not found:\n{result}"
+    except Exception as e:
+        return f"Error creating Gradle Wrapper: {str(e)}\nPlease install gradle or manually create the wrapper."
+
+# ============================================================================
 # Gradle Wrapper Operations
 # ============================================================================
 
@@ -250,6 +317,10 @@ def gradle_properties(project_path: str, project_name: Optional[str] = None) -> 
 # ============================================================================
 
 ALL_GRADLE_TOOLS = [
+    # Java Environment Operations
+    detect_java_version,
+    setup_mise_java,
+    ensure_gradlew,
     # Gradle Wrapper Operations
     gradlew_version,
     gradlew_wrapper_upgrade,
@@ -336,6 +407,10 @@ def gradle_agent(state: OverallState, config: Optional[RunnableConfig] = None) -
         f"- ALL Gradle projects are located in: {workspace_dir}\n"
         f"- When working with Gradle projects, use this absolute path format: {workspace_dir}/project-name\n"
         "- This is a strict requirement for build and analysis workflows\n\n"
+        "**Java Environment Operations:**\n"
+        "- Detect Java version (detect_java_version)\n"
+        "- Set up Java version using mise (setup_mise_java)\n"
+        "- Ensure Gradle Wrapper exists or create it (ensure_gradlew)\n\n"
         "**Build Operations:**\n"
         "- Build projects (gradle_build)\n"
         "- Clean build outputs (gradle_clean)\n"
@@ -356,8 +431,11 @@ def gradle_agent(state: OverallState, config: Optional[RunnableConfig] = None) -
         "**Gradle Wrapper:**\n"
         "- Check Gradle version (gradlew_version)\n"
         "- Upgrade Gradle Wrapper (gradlew_wrapper_upgrade)\n\n"
-        "Use these tools to accomplish the requested Gradle build tasks efficiently.\n"
-        "Always ensure the Gradle Wrapper (./gradlew) exists in the project before executing commands."
+        "**Important Workflow:**\n"
+        "1. Before executing any Gradle commands, always use 'ensure_gradlew' to verify/create the Gradle Wrapper\n"
+        "2. Detect Java version using 'detect_java_version' to understand the current environment\n"
+        "3. If a specific Java version is required, use 'setup_mise_java' to configure it\n\n"
+        "Use these tools to accomplish the requested Gradle build tasks efficiently."
     ))
 
     # Build user prompt

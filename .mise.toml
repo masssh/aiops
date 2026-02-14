@@ -1,4 +1,5 @@
 [tools]
+gradle = "7.0.2"
 python = "3.11"
 
 [tasks.test]
