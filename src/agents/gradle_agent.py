@@ -1,12 +1,11 @@
 import os
 import logging
-from typing import Optional
-from langchain_core.tools import tool
-from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
+from typing import Optional, List
+from langchain_core.tools import tool, BaseTool
+from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
 from src.models.state import OverallState
-from src.utils.llm import get_llm, Provider
-from src.utils.logging import setup_agent_logger
+from src.agents.base_command_agent import BaseCommandAgent
 from src.utils.command import run_command
 
 logger = logging.getLogger(__name__)
@@ -425,6 +424,62 @@ ALL_GRADLE_TOOLS = [
 # Gradle Agent Implementation
 # ============================================================================
 
+
+class GradleAgent(BaseCommandAgent):
+    """LangGraph node that uses an LLM with comprehensive Gradle build tool operations."""
+
+    def get_tools(self) -> List[BaseTool]:
+        """Return list of available Gradle tools."""
+        return ALL_GRADLE_TOOLS
+
+    def get_system_message(self) -> SystemMessage:
+        """Return system message describing agent capabilities."""
+        return SystemMessage(content=(
+            "You are a comprehensive Gradle build automation assistant with access to the following capabilities:\n\n"
+            "**IMPORTANT: Workspace Directory Convention**\n"
+            f"- ALL Gradle projects are located in: {self.workspace_dir}\n"
+            f"- When working with Gradle projects, use this absolute path format: {self.workspace_dir}/project-name\n"
+            "- This is a strict requirement for build and analysis workflows\n\n"
+            "**Java Environment Operations:**\n"
+            "- Detect required Java version from project (detect_required_java_version)\n"
+            "- Detect current active Java version (detect_current_java_version)\n"
+            "- Set up Java version using mise (setup_mise_java)\n"
+            "- Ensure Gradle Wrapper exists or create it (ensure_gradlew)\n\n"
+            "**Build Operations:**\n"
+            "- Build projects (gradle_build)\n"
+            "- Clean build outputs (gradle_clean)\n"
+            "- Assemble artifacts (gradle_assemble)\n\n"
+            "**Test Operations:**\n"
+            "- Run tests (gradle_test)\n"
+            "- Run all verification tasks (gradle_check)\n\n"
+            "**Task Management:**\n"
+            "- List available tasks (gradle_tasks)\n"
+            "- Execute specific tasks (gradle_run_task)\n\n"
+            "**Dependency Analysis:**\n"
+            "- Display dependency tree (gradle_dependencies)\n"
+            "- Get dependency insight (gradle_dependency_insight)\n"
+            "- Show build environment (gradle_build_environment)\n\n"
+            "**Project Information:**\n"
+            "- List all projects (gradle_projects)\n"
+            "- Display project properties (gradle_properties)\n\n"
+            "**Gradle Wrapper:**\n"
+            "- Check Gradle version (gradlew_version)\n"
+            "- Upgrade Gradle Wrapper (gradlew_wrapper_upgrade)\n\n"
+            "**CRITICAL: Pre-execution Checks (MUST BE PERFORMED FIRST)**\n"
+            "Before executing ANY Gradle operations, you MUST perform these checks in order:\n"
+            "1. Detect required Java version: Use 'detect_required_java_version' to determine what JDK version the repository needs\n"
+            "2. Check current Java version: Use 'detect_current_java_version' to see what JDK version is currently active\n"
+            "3. Switch Java version if needed: If the current version doesn't match the required version, use 'setup_mise_java' to switch using mise\n"
+            "4. Ensure Gradle Wrapper exists: Use 'ensure_gradlew' to verify or create the Gradle Wrapper (gradlew)\n\n"
+            "Only after completing these pre-execution checks should you proceed with the actual Gradle operations.\n\n"
+            "Use these tools to accomplish the requested Gradle build tasks efficiently."
+        ))
+
+    def get_default_prompt(self) -> str:
+        """Return default prompt for Gradle operations."""
+        return "Ready to assist with Gradle build operations."
+
+
 def gradle_agent(state: OverallState, config: Optional[RunnableConfig] = None) -> OverallState:
     """
     LangGraph node that uses an LLM with comprehensive Gradle build tool operations.
@@ -449,155 +504,5 @@ def gradle_agent(state: OverallState, config: Optional[RunnableConfig] = None) -
             }
         }
     """
-    # Get configuration
-    configurable = config.get("configurable", {}) if config else {}
-    custom_prompt = configurable.get("gradle_agent_prompt")
-    provider: Provider = configurable.get("provider", "ollama")
-    model: str | None = configurable.get("model", None)
-    project_root: str = configurable.get("project_root", os.getcwd())
-    max_iterations: int = configurable.get("max_iterations", 20)
-    log_dir: str = configurable.get("log_dir", "logs")
-    verbose: bool = configurable.get("verbose", False)
-
-    # Set up dedicated logger for this agent execution
-    agent_logger = setup_agent_logger("gradle_agent", log_dir)
-
-    # Calculate workspace directory absolute path
-    workspace_dir = os.path.abspath(os.path.join(project_root, "workspace"))
-
-    agent_logger.info("="*80)
-    agent_logger.info("Gradle Agent started")
-    agent_logger.info(f"Provider: {provider}, Model: {model}")
-    agent_logger.info(f"Verbose: {verbose}")
-    agent_logger.info(f"Project root: {project_root}")
-    agent_logger.info(f"Workspace directory: {workspace_dir}")
-    agent_logger.info(f"Max iterations: {max_iterations}")
-    agent_logger.info("="*80)
-
-    # Initialize LLM with all Gradle tools
-    llm = get_llm(provider=provider, model=model, verbose=verbose)
-    llm_with_tools = llm.bind_tools(ALL_GRADLE_TOOLS)
-
-    # System message defining the agent's capabilities
-    system_msg = SystemMessage(content=(
-        "You are a comprehensive Gradle build automation assistant with access to the following capabilities:\n\n"
-        "**IMPORTANT: Workspace Directory Convention**\n"
-        f"- ALL Gradle projects are located in: {workspace_dir}\n"
-        f"- When working with Gradle projects, use this absolute path format: {workspace_dir}/project-name\n"
-        "- This is a strict requirement for build and analysis workflows\n\n"
-        "**Java Environment Operations:**\n"
-        "- Detect required Java version from project (detect_required_java_version)\n"
-        "- Detect current active Java version (detect_current_java_version)\n"
-        "- Set up Java version using mise (setup_mise_java)\n"
-        "- Ensure Gradle Wrapper exists or create it (ensure_gradlew)\n\n"
-        "**Build Operations:**\n"
-        "- Build projects (gradle_build)\n"
-        "- Clean build outputs (gradle_clean)\n"
-        "- Assemble artifacts (gradle_assemble)\n\n"
-        "**Test Operations:**\n"
-        "- Run tests (gradle_test)\n"
-        "- Run all verification tasks (gradle_check)\n\n"
-        "**Task Management:**\n"
-        "- List available tasks (gradle_tasks)\n"
-        "- Execute specific tasks (gradle_run_task)\n\n"
-        "**Dependency Analysis:**\n"
-        "- Display dependency tree (gradle_dependencies)\n"
-        "- Get dependency insight (gradle_dependency_insight)\n"
-        "- Show build environment (gradle_build_environment)\n\n"
-        "**Project Information:**\n"
-        "- List all projects (gradle_projects)\n"
-        "- Display project properties (gradle_properties)\n\n"
-        "**Gradle Wrapper:**\n"
-        "- Check Gradle version (gradlew_version)\n"
-        "- Upgrade Gradle Wrapper (gradlew_wrapper_upgrade)\n\n"
-        "**CRITICAL: Pre-execution Checks (MUST BE PERFORMED FIRST)**\n"
-        "Before executing ANY Gradle operations, you MUST perform these checks in order:\n"
-        "1. Detect required Java version: Use 'detect_required_java_version' to determine what JDK version the repository needs\n"
-        "2. Check current Java version: Use 'detect_current_java_version' to see what JDK version is currently active\n"
-        "3. Switch Java version if needed: If the current version doesn't match the required version, use 'setup_mise_java' to switch using mise\n"
-        "4. Ensure Gradle Wrapper exists: Use 'ensure_gradlew' to verify or create the Gradle Wrapper (gradlew)\n\n"
-        "Only after completing these pre-execution checks should you proceed with the actual Gradle operations.\n\n"
-        "Use these tools to accomplish the requested Gradle build tasks efficiently."
-    ))
-
-    # Build user prompt
-    if custom_prompt:
-        # Custom prompt provided by the caller
-        user_prompt = custom_prompt
-        agent_logger.info(f"Using custom prompt: {custom_prompt}")
-    else:
-        # Default behavior: ready for Gradle operations
-        user_prompt = "Ready to assist with Gradle build operations."
-        agent_logger.info("Ready for Gradle operations")
-
-    agent_logger.debug(f"Full user prompt:\n{user_prompt}")
-    messages = [system_msg, HumanMessage(content=user_prompt)]
-
-    # Tool execution loop
-    for iteration in range(max_iterations):
-        agent_logger.info(f"\n{'='*80}")
-        agent_logger.info(f"Iteration {iteration + 1}/{max_iterations}")
-        agent_logger.info(f"{'='*80}")
-
-        # Invoke LLM to decide next action
-        agent_logger.debug("Invoking LLM to determine next action...")
-        ai_msg = llm_with_tools.invoke(messages)
-        messages.append(ai_msg)
-
-        # Log LLM's response content (if any)
-        if hasattr(ai_msg, 'content') and ai_msg.content:
-            agent_logger.debug(f"LLM response content: {ai_msg.content}")
-
-        if not ai_msg.tool_calls:
-            # LLM decided it's done
-            agent_logger.info("LLM has completed its task (no more tool calls)")
-            if hasattr(ai_msg, 'content') and ai_msg.content:
-                agent_logger.info(f"Final message: {ai_msg.content}")
-            logger.info(f"Gradle agent completed after {iteration + 1} iterations")
-            break
-
-        # Log LLM's decision
-        agent_logger.info(f"LLM decided to execute {len(ai_msg.tool_calls)} tool(s):")
-        for idx, tool_call in enumerate(ai_msg.tool_calls, 1):
-            agent_logger.info(f"  {idx}. {tool_call['name']}")
-
-        # Execute all tool calls from this iteration
-        for tool_call in ai_msg.tool_calls:
-            tool_name = tool_call["name"]
-            tool_args = tool_call["args"]
-
-            agent_logger.info(f"\n--- Executing tool: {tool_name} ---")
-            agent_logger.debug(f"Tool arguments: {tool_args}")
-
-            # Find and invoke the appropriate tool
-            tool_function = None
-            for tool in ALL_GRADLE_TOOLS:
-                if tool.name == tool_name:
-                    tool_function = tool
-                    break
-
-            if tool_function:
-                try:
-                    agent_logger.debug(f"Invoking {tool_name}...")
-                    result = tool_function.invoke(tool_args)
-                    agent_logger.info(f"Tool execution successful")
-                    agent_logger.debug(f"Tool result: {result}")
-                except Exception as e:
-                    result = f"Error executing {tool_name}: {str(e)}"
-                    agent_logger.error(f"Tool execution failed: {str(e)}")
-                    logger.error(result)
-            else:
-                result = f"Error: Tool '{tool_name}' not found in available tools."
-                agent_logger.error(result)
-                logger.error(result)
-
-            messages.append(ToolMessage(
-                content=str(result),
-                tool_call_id=tool_call["id"]
-            ))
-
-    agent_logger.info("\n" + "="*80)
-    agent_logger.info("Gradle Agent execution completed")
-    agent_logger.info("="*80)
-
-    return state
+    agent = GradleAgent("gradle_agent", state, config)
+    return agent.run()

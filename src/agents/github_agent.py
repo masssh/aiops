@@ -1,11 +1,11 @@
 import os
 import logging
-from typing import Optional
-from langchain_core.tools import tool
-from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
+from typing import Optional, List
+from langchain_core.tools import tool, BaseTool
+from langchain_core.messages import SystemMessage
+from langchain_core.runnables import RunnableConfig
 from src.models.state import OverallState
-from src.utils.llm import get_llm, Provider
-from src.utils.logging import setup_agent_logger
+from src.agents.base_command_agent import BaseCommandAgent
 from src.utils.command import run_command
 
 logger = logging.getLogger(__name__)
@@ -494,7 +494,92 @@ ALL_GITHUB_TOOLS = [
     gh_release_view,
 ]
 
-from langchain_core.runnables import RunnableConfig
+# ============================================================================
+# GitHub Agent Implementation
+# ============================================================================
+
+
+class GitHubAgent(BaseCommandAgent):
+    """LangGraph node that uses an LLM with comprehensive Git and GitHub tools."""
+
+    def get_tools(self) -> List[BaseTool]:
+        """Return list of available Git/GitHub tools."""
+        return ALL_GITHUB_TOOLS
+
+    def get_system_message(self) -> SystemMessage:
+        """Return system message describing agent capabilities."""
+        return SystemMessage(content=(
+            "You are a comprehensive Git and GitHub automation assistant with access to the following capabilities:\n\n"
+            "**IMPORTANT: Workspace Directory Convention**\n"
+            f"- ALL repositories MUST be cloned to: {self.workspace_dir}\n"
+            f"- When cloning repositories, use this absolute path format: {self.workspace_dir}/repo-name\n"
+            "- This is a strict requirement for repository analysis workflows\n\n"
+            "**Repository Management:**\n"
+            "- Clone repositories (gh_repo_clone, git_clone)\n"
+            "- Fork repositories (gh_repo_fork)\n"
+            "- View repository information (gh_repo_view)\n\n"
+            "**Git Operations:**\n"
+            "- Check repository status (git_status)\n"
+            "- Pull/push changes (git_pull, git_push)\n"
+            "- Stage files and commit (git_add, git_commit)\n"
+            "- Create and switch branches (git_branch_create, git_checkout)\n"
+            "- View commit history (git_log)\n\n"
+            "**Pull Requests:**\n"
+            "- Create PRs (gh_pr_create)\n"
+            "- List, view, and checkout PRs (gh_pr_list, gh_pr_view, gh_pr_checkout)\n"
+            "- Merge PRs (gh_pr_merge)\n"
+            "- Comment on PRs (gh_pr_comment)\n\n"
+            "**Issues:**\n"
+            "- Create and manage issues (gh_issue_create, gh_issue_close)\n"
+            "- List and view issues (gh_issue_list, gh_issue_view)\n"
+            "- Comment on issues (gh_issue_comment)\n\n"
+            "**Releases:**\n"
+            "- Create releases (gh_release_create)\n"
+            "- List and view releases (gh_release_list, gh_release_view)\n\n"
+            "**Authentication:**\n"
+            "- Switch GitHub accounts (gh_auth_switch)\n"
+            "- Check auth status (gh_auth_status)\n\n"
+            "Use these tools to accomplish the requested Git/GitHub tasks efficiently."
+        ))
+
+    def get_default_prompt(self) -> str:
+        """Return default prompt, potentially using repository information from state."""
+        # Extract context from state
+        repositories = self.state.get("products_config", {}).get("repositories", [])
+
+        if repositories:
+            repo_info = "\n".join([str(r) for r in repositories])
+            prompt = (
+                "Please ensure all repositories are cloned and up to date:\n\n"
+                f"{repo_info}\n\n"
+                "For each repository:\n"
+                "1. If an 'account' is specified, switch to that account using gh_auth_switch\n"
+                "2. Clone the repository if it doesn't exist (use gh_repo_clone or git_clone)\n"
+                "3. If already cloned, pull the latest changes using git_pull"
+            )
+            self.agent_logger.info(f"Repository sync mode: {len(repositories)} repositories to process")
+            return prompt
+        else:
+            # No repositories in state, agent is being used for custom tasks
+            self.agent_logger.info("No repositories specified, ready for custom operations")
+            return "Ready to assist with Git and GitHub operations."
+
+    def get_user_prompt(self) -> str:
+        """Override to add repository info to custom prompts if available."""
+        if self.custom_prompt:
+            # Custom prompt provided by the caller
+            repositories = self.state.get("products_config", {}).get("repositories", [])
+            user_prompt = self.custom_prompt
+            if repositories:
+                repo_info = "\n".join([str(r) for r in repositories])
+                user_prompt += f"\n\nRepository Configuration:\n{repo_info}"
+            self.agent_logger.info(f"Using custom prompt: {self.custom_prompt}")
+            return user_prompt
+        else:
+            prompt = self.get_default_prompt()
+            self.agent_logger.info("Using default prompt")
+            return prompt
+
 
 def github_agent(state: OverallState, config: Optional[RunnableConfig] = None) -> OverallState:
     """
@@ -521,167 +606,5 @@ def github_agent(state: OverallState, config: Optional[RunnableConfig] = None) -
             }
         }
     """
-    # Get configuration
-    configurable = config.get("configurable", {}) if config else {}
-    custom_prompt = configurable.get("github_agent_prompt")
-    provider: Provider = configurable.get("provider", "ollama")
-    model: str | None = configurable.get("model", None)
-    project_root: str = configurable.get("project_root", os.getcwd())
-    max_iterations: int = configurable.get("max_iterations", 20)
-    log_dir: str = configurable.get("log_dir", "logs")
-    verbose: bool = configurable.get("verbose", False)
-
-    # Set up dedicated logger for this agent execution
-    agent_logger = setup_agent_logger("github_agent", log_dir)
-
-    # Calculate workspace directory absolute path
-    workspace_dir = os.path.abspath(os.path.join(project_root, "workspace"))
-
-    agent_logger.info("="*80)
-    agent_logger.info("GitHub Agent started")
-    agent_logger.info(f"Provider: {provider}, Model: {model}")
-    agent_logger.info(f"Verbose: {verbose}")
-    agent_logger.info(f"Project root: {project_root}")
-    agent_logger.info(f"Workspace directory: {workspace_dir}")
-    agent_logger.info(f"Max iterations: {max_iterations}")
-    agent_logger.info("="*80)
-
-    # Initialize LLM with all Git/GitHub tools
-    llm = get_llm(provider=provider, model=model, verbose=verbose)
-    llm_with_tools = llm.bind_tools(ALL_GITHUB_TOOLS)
-
-    # Extract context from state
-    repositories = state.get("products_config", {}).get("repositories", [])
-
-    # System message defining the agent's capabilities
-    system_msg = SystemMessage(content=(
-        "You are a comprehensive Git and GitHub automation assistant with access to the following capabilities:\n\n"
-        "**IMPORTANT: Workspace Directory Convention**\n"
-        f"- ALL repositories MUST be cloned to: {workspace_dir}\n"
-        f"- When cloning repositories, use this absolute path format: {workspace_dir}/repo-name\n"
-        "- This is a strict requirement for repository analysis workflows\n\n"
-        "**Repository Management:**\n"
-        "- Clone repositories (gh_repo_clone, git_clone)\n"
-        "- Fork repositories (gh_repo_fork)\n"
-        "- View repository information (gh_repo_view)\n\n"
-        "**Git Operations:**\n"
-        "- Check repository status (git_status)\n"
-        "- Pull/push changes (git_pull, git_push)\n"
-        "- Stage files and commit (git_add, git_commit)\n"
-        "- Create and switch branches (git_branch_create, git_checkout)\n"
-        "- View commit history (git_log)\n\n"
-        "**Pull Requests:**\n"
-        "- Create PRs (gh_pr_create)\n"
-        "- List, view, and checkout PRs (gh_pr_list, gh_pr_view, gh_pr_checkout)\n"
-        "- Merge PRs (gh_pr_merge)\n"
-        "- Comment on PRs (gh_pr_comment)\n\n"
-        "**Issues:**\n"
-        "- Create and manage issues (gh_issue_create, gh_issue_close)\n"
-        "- List and view issues (gh_issue_list, gh_issue_view)\n"
-        "- Comment on issues (gh_issue_comment)\n\n"
-        "**Releases:**\n"
-        "- Create releases (gh_release_create)\n"
-        "- List and view releases (gh_release_list, gh_release_view)\n\n"
-        "**Authentication:**\n"
-        "- Switch GitHub accounts (gh_auth_switch)\n"
-        "- Check auth status (gh_auth_status)\n\n"
-        "Use these tools to accomplish the requested Git/GitHub tasks efficiently."
-    ))
-
-    # Build user prompt
-    if custom_prompt:
-        # Custom prompt provided by the caller
-        user_prompt = custom_prompt
-        if repositories:
-            repo_info = "\n".join([str(r) for r in repositories])
-            user_prompt += f"\n\nRepository Configuration:\n{repo_info}"
-        agent_logger.info(f"Using custom prompt: {custom_prompt}")
-    else:
-        # Default behavior: repository sync
-        if repositories:
-            repo_info = "\n".join([str(r) for r in repositories])
-            user_prompt = (
-                "Please ensure all repositories are cloned and up to date:\n\n"
-                f"{repo_info}\n\n"
-                "For each repository:\n"
-                "1. If an 'account' is specified, switch to that account using gh_auth_switch\n"
-                "2. Clone the repository if it doesn't exist (use gh_repo_clone or git_clone)\n"
-                "3. If already cloned, pull the latest changes using git_pull"
-            )
-            agent_logger.info(f"Repository sync mode: {len(repositories)} repositories to process")
-        else:
-            # No repositories in state, agent is being used for custom tasks
-            user_prompt = "Ready to assist with Git and GitHub operations."
-            agent_logger.info("No repositories specified, ready for custom operations")
-
-    agent_logger.debug(f"Full user prompt:\n{user_prompt}")
-    messages = [system_msg, HumanMessage(content=user_prompt)]
-
-    # Tool execution loop
-    for iteration in range(max_iterations):
-        agent_logger.info(f"\n{'='*80}")
-        agent_logger.info(f"Iteration {iteration + 1}/{max_iterations}")
-        agent_logger.info(f"{'='*80}")
-
-        # Invoke LLM to decide next action
-        agent_logger.debug("Invoking LLM to determine next action...")
-        ai_msg = llm_with_tools.invoke(messages)
-        messages.append(ai_msg)
-
-        # Log LLM's response content (if any)
-        if hasattr(ai_msg, 'content') and ai_msg.content:
-            agent_logger.debug(f"LLM response content: {ai_msg.content}")
-
-        if not ai_msg.tool_calls:
-            # LLM decided it's done
-            agent_logger.info("LLM has completed its task (no more tool calls)")
-            if hasattr(ai_msg, 'content') and ai_msg.content:
-                agent_logger.info(f"Final message: {ai_msg.content}")
-            logger.info(f"GitHub agent completed after {iteration + 1} iterations")
-            break
-
-        # Log LLM's decision
-        agent_logger.info(f"LLM decided to execute {len(ai_msg.tool_calls)} tool(s):")
-        for idx, tool_call in enumerate(ai_msg.tool_calls, 1):
-            agent_logger.info(f"  {idx}. {tool_call['name']}")
-
-        # Execute all tool calls from this iteration
-        for tool_call in ai_msg.tool_calls:
-            tool_name = tool_call["name"]
-            tool_args = tool_call["args"]
-
-            agent_logger.info(f"\n--- Executing tool: {tool_name} ---")
-            agent_logger.debug(f"Tool arguments: {tool_args}")
-
-            # Find and invoke the appropriate tool
-            tool_function = None
-            for tool in ALL_GITHUB_TOOLS:
-                if tool.name == tool_name:
-                    tool_function = tool
-                    break
-
-            if tool_function:
-                try:
-                    agent_logger.debug(f"Invoking {tool_name}...")
-                    result = tool_function.invoke(tool_args)
-                    agent_logger.info(f"Tool execution successful")
-                    agent_logger.debug(f"Tool result: {result}")
-                except Exception as e:
-                    result = f"Error executing {tool_name}: {str(e)}"
-                    agent_logger.error(f"Tool execution failed: {str(e)}")
-                    logger.error(result)
-            else:
-                result = f"Error: Tool '{tool_name}' not found in available tools."
-                agent_logger.error(result)
-                logger.error(result)
-
-            messages.append(ToolMessage(
-                content=str(result),
-                tool_call_id=tool_call["id"]
-            ))
-
-    agent_logger.info("\n" + "="*80)
-    agent_logger.info("GitHub Agent execution completed")
-    agent_logger.info("="*80)
-
-    return state
+    agent = GitHubAgent("github_agent", state, config)
+    return agent.run()
