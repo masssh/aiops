@@ -32,7 +32,7 @@ def main():
         }
         
         # Prepare graph config with configurable parameters
-        graph_config = {"configurable": {"github_agent_prompt": args.prompt}} if args.prompt else {}
+        graph_config = {"configurable": {"prompt": args.prompt}} if args.prompt else {}
         
         graph = create_analysis_graph()
         

@@ -496,7 +496,7 @@ def gradle_agent(state: OverallState, config: Optional[RunnableConfig] = None) -
             "configurable": {
                 "provider": "ollama",
                 "model": "qwen3:8b",
-                "gradle_agent_prompt": "Your custom instructions...",
+                "prompt": "Your custom instructions...",
                 "project_root": "/path/to/project",  # Optional: project root directory
                 "max_iterations": 20,  # Optional: override default iteration limit
                 "log_dir": "logs",  # Optional: directory for log files

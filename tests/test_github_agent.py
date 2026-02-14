@@ -40,7 +40,7 @@ def test_github_agent_repository_sync():
                     "configurable": {
                         "provider": "ollama",
                         "model": "qwen3:8b",
-                        "github_agent_prompt": "Clone and sync all repositories."
+                        "prompt": "Clone and sync all repositories."
                     }
                 }
                 try:
@@ -87,7 +87,7 @@ def test_github_agent_custom_workflow():
             "configurable": {
                 "provider": "ollama",
                 "model": "qwen3:8b",
-                "github_agent_prompt": custom_instructions,
+                "prompt": custom_instructions,
                 "max_iterations": 10
             }
         }

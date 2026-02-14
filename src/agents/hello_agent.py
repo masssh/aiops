@@ -39,7 +39,7 @@ def hello_agent(state: OverallState, config: Optional[RunnableConfig] = None) ->
             "configurable": {
                 "provider": "ollama",
                 "model": "qwen2.5-coder:7b",
-                "hello_agent_prompt": "Your custom greeting instructions...",
+                "prompt": "Your custom greeting instructions...",
                 "project_root": "/path/to/project",  # Optional: project root directory
                 "max_iterations": 20,  # Optional: override default iteration limit
                 "log_dir": "logs",  # Optional: directory for log files

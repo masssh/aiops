@@ -40,7 +40,7 @@ class TestGradleAgentIntegration:
             "configurable": {
                 "provider": "ollama",
                 "model": "qwen3:8b",
-                "gradle_agent_prompt": f"""
+                "prompt": f"""
                     {GRADLE_PROJECT_PATH} でGradleバージョンを確認してください。
                 """,
                 "max_iterations": 5,
@@ -71,7 +71,7 @@ class TestGradleAgentIntegration:
             "configurable": {
                 "provider": "ollama",
                 "model": "qwen3:8b",
-                "gradle_agent_prompt": f"""
+                "prompt": f"""
                     {GRADLE_PROJECT_PATH} で利用可能なGradleタスクの一覧を表示してください。
                 """,
                 "max_iterations": 5,
@@ -102,7 +102,7 @@ class TestGradleAgentIntegration:
             "configurable": {
                 "provider": "ollama",
                 "model": "qwen3:8b",
-                "gradle_agent_prompt": f"""
+                "prompt": f"""
                     {GRADLE_PROJECT_PATH} のプロジェクト一覧を表示してください。
                     これはマルチプロジェクトビルドです。
                 """,
@@ -134,7 +134,7 @@ class TestGradleAgentIntegration:
             "configurable": {
                 "provider": "ollama",
                 "model": "qwen3:8b",
-                "gradle_agent_prompt": f"""
+                "prompt": f"""
                     {GRADLE_PROJECT_PATH} の依存関係を分析してください。
                     product-service サブプロジェクトの依存関係を表示してください。
                 """,
@@ -170,7 +170,7 @@ class TestGradleAgentIntegration:
             "configurable": {
                 "provider": "ollama",
                 "model": "qwen3:8b",
-                "gradle_agent_prompt": f"""
+                "prompt": f"""
                     {GRADLE_PROJECT_PATH} で以下を順番に実行してください：
                     1. クリーンを実行
                     2. テストをスキップしてアセンブルを実行

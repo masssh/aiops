@@ -136,7 +136,7 @@ def test_gradle_agent_basic_workflow(test_repo_path):
         "configurable": {
             "provider": "ollama",
             "model": "qwen3:8b",
-            "gradle_agent_prompt": custom_instructions,
+            "prompt": custom_instructions,
             "project_root": str(PROJECT_ROOT),
             "max_iterations": 10,
             "verbose": False
@@ -176,7 +176,7 @@ def test_gradle_agent_with_mise_setup(test_repo_path):
         "configurable": {
             "provider": "ollama",
             "model": "qwen3:8b",
-            "gradle_agent_prompt": custom_instructions,
+            "prompt": custom_instructions,
             "project_root": str(PROJECT_ROOT),
             "max_iterations": 10,
             "verbose": False

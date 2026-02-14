@@ -60,7 +60,7 @@ class BaseCommandAgent:
 
         # Extract configuration
         self.configurable = self.config.get("configurable", {})
-        self.custom_prompt = self.configurable.get(f"{agent_name}_prompt")
+        self.custom_prompt = self.configurable.get("prompt")
         self.provider: Provider = self.configurable.get("provider", "ollama")
         self.model: str | None = self.configurable.get("model", None)
         self.project_root: str = self.configurable.get("project_root", os.getcwd())
