@@ -74,6 +74,12 @@ class BaseCommandAgent:
         # Set up dedicated logger for this agent execution
         self.agent_logger = setup_agent_logger(agent_name, self.log_dir)
 
+        # Initialize usage tracking
+        self.total_input_tokens = 0
+        self.total_output_tokens = 0
+        self.total_tokens = 0
+        self.llm_calls = 0
+
         self._log_initialization()
 
     def _log_initialization(self):
@@ -177,6 +183,66 @@ class BaseCommandAgent:
             logger.error(result)
             return result
 
+    def _log_usage_metrics(self, ai_msg: Any, messages: List, iteration: int):
+        """
+        Log token usage and context metrics for the current LLM call.
+
+        Args:
+            ai_msg: LLM response message
+            messages: Current message list
+            iteration: Current iteration number
+        """
+        # Extract token usage from LLM response
+        input_tokens = 0
+        output_tokens = 0
+        total_tokens = 0
+
+        # Try to get usage_metadata (LangChain v0.1+)
+        if hasattr(ai_msg, 'usage_metadata') and ai_msg.usage_metadata:
+            usage = ai_msg.usage_metadata
+            input_tokens = usage.get('input_tokens', 0)
+            output_tokens = usage.get('output_tokens', 0)
+            total_tokens = usage.get('total_tokens', 0)
+        # Fallback to response_metadata for older versions or different providers
+        elif hasattr(ai_msg, 'response_metadata') and ai_msg.response_metadata:
+            metadata = ai_msg.response_metadata
+            # Try different metadata formats
+            if 'usage' in metadata:
+                usage = metadata['usage']
+                input_tokens = usage.get('prompt_tokens', usage.get('input_tokens', 0))
+                output_tokens = usage.get('completion_tokens', usage.get('output_tokens', 0))
+                total_tokens = usage.get('total_tokens', 0)
+            elif 'token_usage' in metadata:
+                usage = metadata['token_usage']
+                input_tokens = usage.get('prompt_tokens', usage.get('input_tokens', 0))
+                output_tokens = usage.get('completion_tokens', usage.get('output_tokens', 0))
+                total_tokens = usage.get('total_tokens', 0)
+
+        # Update cumulative totals
+        self.total_input_tokens += input_tokens
+        self.total_output_tokens += output_tokens
+        self.total_tokens += total_tokens if total_tokens > 0 else (input_tokens + output_tokens)
+        self.llm_calls += 1
+
+        # Calculate context metrics
+        total_messages = len(messages)
+        total_chars = sum(len(str(msg.content)) if hasattr(msg, 'content') else 0 for msg in messages)
+
+        # Log usage metrics
+        self.agent_logger.info(f"\n--- Usage Metrics (Iteration {iteration + 1}) ---")
+        self.agent_logger.info(f"LLM Call Tokens:")
+        self.agent_logger.info(f"  Input Tokens:  {input_tokens:,}")
+        self.agent_logger.info(f"  Output Tokens: {output_tokens:,}")
+        self.agent_logger.info(f"  Total Tokens:  {input_tokens + output_tokens:,}")
+        self.agent_logger.info(f"Context Metrics:")
+        self.agent_logger.info(f"  Total Messages: {total_messages}")
+        self.agent_logger.info(f"  Total Characters: {total_chars:,}")
+        self.agent_logger.info(f"Cumulative Totals:")
+        self.agent_logger.info(f"  Total Input Tokens:  {self.total_input_tokens:,}")
+        self.agent_logger.info(f"  Total Output Tokens: {self.total_output_tokens:,}")
+        self.agent_logger.info(f"  Grand Total Tokens:  {self.total_tokens:,}")
+        self.agent_logger.info(f"  Total LLM Calls: {self.llm_calls}")
+
     def run_tool_execution_loop(
         self,
         llm_with_tools: Any,
@@ -203,6 +269,9 @@ class BaseCommandAgent:
             self.agent_logger.info("Invoking LLM to determine next action...")
             ai_msg = llm_with_tools.invoke(messages)
             messages.append(ai_msg)
+
+            # Log usage and context metrics
+            self._log_usage_metrics(ai_msg, messages, iteration)
 
             # Log LLM's response content (if any)
             if hasattr(ai_msg, 'content') and ai_msg.content:
@@ -255,9 +324,20 @@ class BaseCommandAgent:
         # Run tool execution loop
         self.run_tool_execution_loop(llm_with_tools, messages, tools)
 
-        # Log completion
+        # Log completion with final usage summary
         self.agent_logger.info("\n" + "="*80)
         self.agent_logger.info(f"{self.agent_name.replace('_', ' ').title()} execution completed")
+        self.agent_logger.info("="*80)
+        self.agent_logger.info("\n--- Final Usage Summary ---")
+        self.agent_logger.info(f"Provider: {self.provider}")
+        self.agent_logger.info(f"Model: {self.model or 'default'}")
+        self.agent_logger.info(f"Total LLM Calls: {self.llm_calls}")
+        self.agent_logger.info(f"Total Input Tokens:  {self.total_input_tokens:,}")
+        self.agent_logger.info(f"Total Output Tokens: {self.total_output_tokens:,}")
+        self.agent_logger.info(f"Grand Total Tokens:  {self.total_tokens:,}")
+        if self.llm_calls > 0:
+            avg_tokens = self.total_tokens / self.llm_calls
+            self.agent_logger.info(f"Average Tokens per Call: {avg_tokens:,.1f}")
         self.agent_logger.info("="*80)
 
         return self.state
