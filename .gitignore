@@ -36,6 +36,12 @@ ENV/
 .vscode/
 .idea/
 
+# Jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+.jupyter/
+jupyter_config.py
+
 # Project specific
 workspace/
 analysis_results/
