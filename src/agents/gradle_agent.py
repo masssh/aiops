@@ -167,21 +167,6 @@ def gradlew_version(project_path: str) -> str:
     logger.info(f"Checking Gradle version in {project_path}")
     return run_command(["./gradlew", "--version"], cwd=project_path)
 
-@tool
-def gradlew_wrapper_upgrade(project_path: str, gradle_version: Optional[str] = None) -> str:
-    """
-    Upgrade Gradle Wrapper to a specific version.
-
-    Args:
-        project_path: Path to the Gradle project
-        gradle_version: Target Gradle version (e.g., "8.5"). If not specified, upgrades to latest.
-    """
-    logger.info(f"Upgrading Gradle Wrapper in {project_path}")
-    cmd = ["./gradlew", "wrapper"]
-    if gradle_version:
-        cmd.extend(["--gradle-version", gradle_version])
-    return run_command(cmd, cwd=project_path)
-
 # ============================================================================
 # Task Operations
 # ============================================================================
@@ -219,88 +204,6 @@ def gradle_run_task(project_path: str, task_name: str, additional_args: str = ""
     if additional_args:
         cmd.extend(additional_args.split())
     return run_command(cmd, cwd=project_path)
-
-# ============================================================================
-# Build Operations
-# ============================================================================
-
-@tool
-def gradle_build(project_path: str, skip_tests: bool = False, parallel: bool = False) -> str:
-    """
-    Build the Gradle project.
-
-    Args:
-        project_path: Path to the Gradle project
-        skip_tests: Skip test execution (default: False)
-        parallel: Enable parallel execution (default: False)
-    """
-    logger.info(f"Building Gradle project in {project_path}")
-    cmd = ["./gradlew", "build"]
-    if skip_tests:
-        cmd.append("-x")
-        cmd.append("test")
-    if parallel:
-        cmd.append("--parallel")
-    return run_command(cmd, cwd=project_path)
-
-@tool
-def gradle_clean(project_path: str) -> str:
-    """
-    Clean the Gradle project build outputs.
-
-    Args:
-        project_path: Path to the Gradle project
-    """
-    logger.info(f"Cleaning Gradle project in {project_path}")
-    return run_command(["./gradlew", "clean"], cwd=project_path)
-
-@tool
-def gradle_assemble(project_path: str, parallel: bool = False) -> str:
-    """
-    Assemble the project outputs without running tests.
-
-    Args:
-        project_path: Path to the Gradle project
-        parallel: Enable parallel execution (default: False)
-    """
-    logger.info(f"Assembling Gradle project in {project_path}")
-    cmd = ["./gradlew", "assemble"]
-    if parallel:
-        cmd.append("--parallel")
-    return run_command(cmd, cwd=project_path)
-
-# ============================================================================
-# Test Operations
-# ============================================================================
-
-@tool
-def gradle_test(project_path: str, test_filter: Optional[str] = None, parallel: bool = False) -> str:
-    """
-    Run tests in the Gradle project.
-
-    Args:
-        project_path: Path to the Gradle project
-        test_filter: Test filter pattern (e.g., "*IntegrationTest")
-        parallel: Enable parallel test execution (default: False)
-    """
-    logger.info(f"Running tests in {project_path}")
-    cmd = ["./gradlew", "test"]
-    if test_filter:
-        cmd.extend(["--tests", test_filter])
-    if parallel:
-        cmd.append("--parallel")
-    return run_command(cmd, cwd=project_path)
-
-@tool
-def gradle_check(project_path: str) -> str:
-    """
-    Run all verification tasks (tests, linting, etc.).
-
-    Args:
-        project_path: Path to the Gradle project
-    """
-    logger.info(f"Running verification tasks in {project_path}")
-    return run_command(["./gradlew", "check"], cwd=project_path)
 
 # ============================================================================
 # Dependency Operations
@@ -342,17 +245,6 @@ def gradle_dependency_insight(project_path: str, dependency: str, configuration:
     if configuration:
         cmd.extend(["--configuration", configuration])
     return run_command(cmd, cwd=project_path)
-
-@tool
-def gradle_build_environment(project_path: str) -> str:
-    """
-    Display build environment information including Gradle version, JVM details, and OS info.
-
-    Args:
-        project_path: Path to the Gradle project
-    """
-    logger.info(f"Displaying build environment for {project_path}")
-    return run_command(["./gradlew", "buildEnvironment"], cwd=project_path)
 
 # ============================================================================
 # Project Information
@@ -398,21 +290,12 @@ ALL_GRADLE_TOOLS = [
     ensure_gradlew,
     # Gradle Wrapper Operations
     gradlew_version,
-    gradlew_wrapper_upgrade,
     # Task Operations
     gradle_tasks,
     gradle_run_task,
-    # Build Operations
-    gradle_build,
-    gradle_clean,
-    gradle_assemble,
-    # Test Operations
-    gradle_test,
-    gradle_check,
     # Dependency Operations
     gradle_dependencies,
     gradle_dependency_insight,
-    gradle_build_environment,
     # Project Information
     gradle_projects,
     gradle_properties,
