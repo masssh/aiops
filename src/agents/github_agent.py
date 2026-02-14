@@ -6,6 +6,7 @@ from langchain_core.tools import tool
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from src.models.state import OverallState
 from src.utils.llm import get_llm, Provider
+from src.utils.logging import setup_agent_logger
 
 logger = logging.getLogger(__name__)
 
@@ -509,7 +510,7 @@ ALL_GITHUB_TOOLS = [
 
 from langchain_core.runnables import RunnableConfig
 
-def github_agent(state: OverallState, config: RunnableConfig = None) -> OverallState:
+def github_agent(state: OverallState, config: Optional[RunnableConfig] = None) -> OverallState:
     """
     LangGraph node that uses an LLM with comprehensive Git and GitHub tools.
 
@@ -528,7 +529,8 @@ def github_agent(state: OverallState, config: RunnableConfig = None) -> OverallS
                 "model": "qwen3:8b",
                 "github_agent_prompt": "Your custom instructions...",
                 "project_root": "/path/to/project",  # Optional: project root directory
-                "max_iterations": 20  # Optional: override default iteration limit
+                "max_iterations": 20,  # Optional: override default iteration limit
+                "log_dir": "logs"  # Optional: directory for log files
             }
         }
     """
@@ -539,9 +541,21 @@ def github_agent(state: OverallState, config: RunnableConfig = None) -> OverallS
     model: str | None = configurable.get("model", None)
     project_root: str = configurable.get("project_root", os.getcwd())
     max_iterations: int = configurable.get("max_iterations", 20)
+    log_dir: str = configurable.get("log_dir", "logs")
+
+    # Set up dedicated logger for this agent execution
+    agent_logger = setup_agent_logger("github_agent", log_dir)
 
     # Calculate workspace directory absolute path
     workspace_dir = os.path.abspath(os.path.join(project_root, "workspace"))
+
+    agent_logger.info("="*80)
+    agent_logger.info("GitHub Agent started")
+    agent_logger.info(f"Provider: {provider}, Model: {model}")
+    agent_logger.info(f"Project root: {project_root}")
+    agent_logger.info(f"Workspace directory: {workspace_dir}")
+    agent_logger.info(f"Max iterations: {max_iterations}")
+    agent_logger.info("="*80)
 
     # Initialize LLM with all Git/GitHub tools
     llm = get_llm(provider=provider, model=model)
@@ -592,6 +606,7 @@ def github_agent(state: OverallState, config: RunnableConfig = None) -> OverallS
         if repositories:
             repo_info = "\n".join([str(r) for r in repositories])
             user_prompt += f"\n\nRepository Configuration:\n{repo_info}"
+        agent_logger.info(f"Using custom prompt: {custom_prompt[:100]}...")
     else:
         # Default behavior: repository sync
         if repositories:
@@ -604,26 +619,50 @@ def github_agent(state: OverallState, config: RunnableConfig = None) -> OverallS
                 "2. Clone the repository if it doesn't exist (use gh_repo_clone or git_clone)\n"
                 "3. If already cloned, pull the latest changes using git_pull"
             )
+            agent_logger.info(f"Repository sync mode: {len(repositories)} repositories to process")
         else:
             # No repositories in state, agent is being used for custom tasks
             user_prompt = "Ready to assist with Git and GitHub operations."
+            agent_logger.info("No repositories specified, ready for custom operations")
 
+    agent_logger.debug(f"Full user prompt:\n{user_prompt}")
     messages = [system_msg, HumanMessage(content=user_prompt)]
 
     # Tool execution loop
     for iteration in range(max_iterations):
+        agent_logger.info(f"\n{'='*80}")
+        agent_logger.info(f"Iteration {iteration + 1}/{max_iterations}")
+        agent_logger.info(f"{'='*80}")
+
+        # Invoke LLM to decide next action
+        agent_logger.debug("Invoking LLM to determine next action...")
         ai_msg = llm_with_tools.invoke(messages)
         messages.append(ai_msg)
 
+        # Log LLM's response content (if any)
+        if hasattr(ai_msg, 'content') and ai_msg.content:
+            agent_logger.debug(f"LLM response content: {ai_msg.content}")
+
         if not ai_msg.tool_calls:
             # LLM decided it's done
+            agent_logger.info("LLM has completed its task (no more tool calls)")
+            if hasattr(ai_msg, 'content') and ai_msg.content:
+                agent_logger.info(f"Final message: {ai_msg.content}")
             logger.info(f"GitHub agent completed after {iteration + 1} iterations")
             break
+
+        # Log LLM's decision
+        agent_logger.info(f"LLM decided to execute {len(ai_msg.tool_calls)} tool(s):")
+        for idx, tool_call in enumerate(ai_msg.tool_calls, 1):
+            agent_logger.info(f"  {idx}. {tool_call['name']}")
 
         # Execute all tool calls from this iteration
         for tool_call in ai_msg.tool_calls:
             tool_name = tool_call["name"]
             tool_args = tool_call["args"]
+
+            agent_logger.info(f"\n--- Executing tool: {tool_name} ---")
+            agent_logger.debug(f"Tool arguments: {tool_args}")
 
             # Find and invoke the appropriate tool
             tool_function = None
@@ -634,17 +673,26 @@ def github_agent(state: OverallState, config: RunnableConfig = None) -> OverallS
 
             if tool_function:
                 try:
+                    agent_logger.debug(f"Invoking {tool_name}...")
                     result = tool_function.invoke(tool_args)
+                    agent_logger.info(f"Tool execution successful")
+                    agent_logger.debug(f"Tool result: {result}")
                 except Exception as e:
                     result = f"Error executing {tool_name}: {str(e)}"
+                    agent_logger.error(f"Tool execution failed: {str(e)}")
                     logger.error(result)
             else:
                 result = f"Error: Tool '{tool_name}' not found in available tools."
+                agent_logger.error(result)
                 logger.error(result)
 
             messages.append(ToolMessage(
                 content=str(result),
                 tool_call_id=tool_call["id"]
             ))
+
+    agent_logger.info("\n" + "="*80)
+    agent_logger.info("GitHub Agent execution completed")
+    agent_logger.info("="*80)
 
     return state

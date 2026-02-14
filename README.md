@@ -26,6 +26,13 @@ cp .env.example .env
 # .env を編集して実際の API キーを記入してください
 ```
 
+`.env` ファイルで設定可能な項目：
+- `GOOGLE_API_KEY`: Google Gemini APIキー（必須）
+- `LOG_LEVEL_FILE`: ファイル出力のログレベル（デフォルト: DEBUG）
+- `LOG_LEVEL_CONSOLE`: コンソール出力のログレベル（デフォルト: INFO）
+
+利用可能なログレベル: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`
+
 ### 3. 依存関係のインストール
 
 ```bash

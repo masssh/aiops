@@ -6,6 +6,7 @@ from langchain_core.tools import tool
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from src.models.state import OverallState, RepositoryState, ProjectState
 from src.utils.llm import get_llm
+from src.utils.logging import setup_agent_logger
 from langchain_core.runnables import RunnableConfig
 
 logger = logging.getLogger(__name__)
@@ -46,10 +47,21 @@ def gradle_agent(state: OverallState, config: RunnableConfig = None) -> OverallS
     """
     Analyzes Gradle projects within the repositories.
     """
+    # Get configuration
+    configurable = config.get("configurable", {}) if config else {}
+    log_dir: str = configurable.get("log_dir", "logs")
+
+    # Set up dedicated logger for this agent execution
+    agent_logger = setup_agent_logger("gradle_agent", log_dir)
+
+    agent_logger.info("="*80)
+    agent_logger.info("Gradle Agent started")
+    agent_logger.info("="*80)
+
     llm = get_llm()
     tools = [list_files_recursive, read_gradle_file, save_analysis_result]
     llm_with_tools = llm.bind_tools(tools)
-    
+
     results = state.get("results", {})
     products_config = state.get("products_config", {})
     repositories = products_config.get("repositories", [])
@@ -58,8 +70,8 @@ def gradle_agent(state: OverallState, config: RunnableConfig = None) -> OverallS
         repo_path = repo.get("path")
         if not repo_path or not os.path.exists(repo_path):
             continue
-        
-        logger.info(f"Analyzing Gradle project at {repo_path}")
+
+        agent_logger.info(f"Analyzing Gradle project at {repo_path}")
         
         system_msg = SystemMessage(content=(
             "You are an expert in Gradle and Java/Kotlin project structures. "
@@ -83,7 +95,7 @@ def gradle_agent(state: OverallState, config: RunnableConfig = None) -> OverallS
                 ai_msg = llm_with_tools.invoke(messages)
             except Exception as e:
                 if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
-                    logger.warning(f"Rate limit hit, waiting 30 seconds... (Attempt {i+1}/15)")
+                    agent_logger.warning(f"Rate limit hit, waiting 30 seconds... (Attempt {i+1}/15)")
                     time.sleep(30)
                     continue
                 raise e
@@ -107,5 +119,9 @@ def gradle_agent(state: OverallState, config: RunnableConfig = None) -> OverallS
                     res = f"Error: Tool {tool_name} not found."
                     
                 messages.append(ToolMessage(content=str(res), tool_call_id=tool_call["id"]))
+
+    agent_logger.info("="*80)
+    agent_logger.info("Gradle Agent execution completed")
+    agent_logger.info("="*80)
 
     return state
