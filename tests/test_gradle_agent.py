@@ -8,7 +8,7 @@ from src.agents.gradle_agent import (
     gradle_dependencies,
     gradle_tasks,
     gradlew_version,
-    detect_java_version,
+    detect_required_java_version,
     setup_mise_java,
     ensure_gradlew,
 )
@@ -28,9 +28,9 @@ def test_repo_path():
     return str(TEST_REPO_PATH)
 
 
-def test_detect_java_version(test_repo_path):
+def test_detect_required_java_version(test_repo_path):
     """Test Java version detection."""
-    result = detect_java_version.invoke({"project_path": test_repo_path})
+    result = detect_required_java_version.invoke({"project_path": test_repo_path})
 
     assert result is not None
     assert "java" in result.lower() or "openjdk" in result.lower()
