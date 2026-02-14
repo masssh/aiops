@@ -12,6 +12,7 @@ Environment Variables:
 """
 
 import os
+import sys
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -45,11 +46,11 @@ def setup_agent_logger(
     log_path.mkdir(parents=True, exist_ok=True)
 
     # Get log levels from environment variables
-    file_level_str = os.getenv("LOG_LEVEL_FILE", "DEBUG").upper()
+    file_level_str = os.getenv("LOG_LEVEL_FILE", "INFO").upper()
     console_level_str = os.getenv("LOG_LEVEL_CONSOLE", "INFO").upper()
 
     # Convert string to logging level, with fallback to default if invalid
-    file_level = getattr(logging, file_level_str, logging.DEBUG)
+    file_level = getattr(logging, file_level_str, logging.INFO)
     console_level = getattr(logging, console_level_str, logging.INFO)
 
     # Create logger
@@ -77,7 +78,7 @@ def setup_agent_logger(
     file_handler.setFormatter(detailed_formatter)
 
     # Console handler
-    console_handler = logging.StreamHandler()
+    console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(console_level)
     console_handler.setFormatter(console_formatter)
 

@@ -1,4 +1,3 @@
-import subprocess
 import os
 import logging
 from typing import Optional
@@ -7,22 +6,9 @@ from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from src.models.state import OverallState
 from src.utils.llm import get_llm, Provider
 from src.utils.logging import setup_agent_logger
+from src.utils.command import run_command
 
 logger = logging.getLogger(__name__)
-
-class GitHubAgentLogic:
-    """Execution logic for Git and GitHub operations using git and gh CLI."""
-
-    def _run_command(self, cmd: list[str], cwd: Optional[str] = None) -> str:
-        """Execute a shell command and return the output or error message."""
-        try:
-            result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd, check=True)
-            return result.stdout.strip() if result.stdout.strip() else "Command executed successfully."
-        except subprocess.CalledProcessError as e:
-            error_msg = e.stderr.strip() if e.stderr.strip() else str(e)
-            return f"Error: {error_msg}"
-
-github_agent_logic = GitHubAgentLogic()
 
 # ============================================================================
 # Authentication & Account Management
@@ -32,13 +18,13 @@ github_agent_logic = GitHubAgentLogic()
 def gh_auth_switch(account: str) -> str:
     """Switch gh CLI authentication to the specified GitHub account."""
     logger.info(f"Switching GitHub account to: {account}")
-    return github_agent_logic._run_command(["gh", "auth", "switch", "--user", account])
+    return run_command(["gh", "auth", "switch", "--user", account])
 
 @tool
 def gh_auth_status() -> str:
     """Check the current GitHub authentication status."""
     logger.info("Checking GitHub authentication status")
-    return github_agent_logic._run_command(["gh", "auth", "status"])
+    return run_command(["gh", "auth", "status"])
 
 # ============================================================================
 # Repository Operations
@@ -56,7 +42,7 @@ def gh_repo_clone(repo_id: str, local_path: str) -> str:
     full_path = os.path.abspath(local_path)
     os.makedirs(os.path.dirname(full_path), exist_ok=True)
     logger.info(f"Cloning repository: {repo_id} to {local_path}")
-    return github_agent_logic._run_command(["gh", "repo", "clone", repo_id, full_path])
+    return run_command(["gh", "repo", "clone", repo_id, full_path])
 
 @tool
 def git_clone(url: str, local_path: str) -> str:
@@ -70,7 +56,7 @@ def git_clone(url: str, local_path: str) -> str:
     full_path = os.path.abspath(local_path)
     os.makedirs(os.path.dirname(full_path), exist_ok=True)
     logger.info(f"Cloning repository from URL: {url} to {local_path}")
-    return github_agent_logic._run_command(["git", "clone", url, full_path])
+    return run_command(["git", "clone", url, full_path])
 
 @tool
 def gh_repo_fork(repo_id: str, clone: bool = True) -> str:
@@ -85,7 +71,7 @@ def gh_repo_fork(repo_id: str, clone: bool = True) -> str:
     cmd = ["gh", "repo", "fork", repo_id]
     if clone:
         cmd.append("--clone")
-    return github_agent_logic._run_command(cmd)
+    return run_command(cmd)
 
 @tool
 def gh_repo_view(repo_id: str, cwd: Optional[str] = None) -> str:
@@ -100,7 +86,7 @@ def gh_repo_view(repo_id: str, cwd: Optional[str] = None) -> str:
     cmd = ["gh", "repo", "view"]
     if repo_id:
         cmd.append(repo_id)
-    return github_agent_logic._run_command(cmd, cwd=cwd)
+    return run_command(cmd, cwd=cwd)
 
 # ============================================================================
 # Git Basic Operations
@@ -115,7 +101,7 @@ def git_status(repo_path: str) -> str:
         repo_path: Path to the Git repository
     """
     logger.info(f"Getting git status for: {repo_path}")
-    return github_agent_logic._run_command(["git", "status"], cwd=repo_path)
+    return run_command(["git", "status"], cwd=repo_path)
 
 @tool
 def git_pull(repo_path: str, remote: str = "origin", branch: Optional[str] = None) -> str:
@@ -131,7 +117,7 @@ def git_pull(repo_path: str, remote: str = "origin", branch: Optional[str] = Non
     cmd = ["git", "pull", remote]
     if branch:
         cmd.append(branch)
-    return github_agent_logic._run_command(cmd, cwd=repo_path)
+    return run_command(cmd, cwd=repo_path)
 
 @tool
 def git_push(repo_path: str, remote: str = "origin", branch: Optional[str] = None, set_upstream: bool = False) -> str:
@@ -154,7 +140,7 @@ def git_push(repo_path: str, remote: str = "origin", branch: Optional[str] = Non
         cmd.append(remote)
         if branch:
             cmd.append(branch)
-    return github_agent_logic._run_command(cmd, cwd=repo_path)
+    return run_command(cmd, cwd=repo_path)
 
 @tool
 def git_add(repo_path: str, files: str = ".") -> str:
@@ -166,7 +152,7 @@ def git_add(repo_path: str, files: str = ".") -> str:
         files: Files or patterns to add (default: "." for all)
     """
     logger.info(f"Adding files: {files} in {repo_path}")
-    return github_agent_logic._run_command(["git", "add", files], cwd=repo_path)
+    return run_command(["git", "add", files], cwd=repo_path)
 
 @tool
 def git_commit(repo_path: str, message: str) -> str:
@@ -178,7 +164,7 @@ def git_commit(repo_path: str, message: str) -> str:
         message: Commit message
     """
     logger.info(f"Creating commit in {repo_path}")
-    return github_agent_logic._run_command(["git", "commit", "-m", message], cwd=repo_path)
+    return run_command(["git", "commit", "-m", message], cwd=repo_path)
 
 @tool
 def git_branch_list(repo_path: str, all_branches: bool = False) -> str:
@@ -193,7 +179,7 @@ def git_branch_list(repo_path: str, all_branches: bool = False) -> str:
     cmd = ["git", "branch"]
     if all_branches:
         cmd.append("-a")
-    return github_agent_logic._run_command(cmd, cwd=repo_path)
+    return run_command(cmd, cwd=repo_path)
 
 @tool
 def git_branch_create(repo_path: str, branch_name: str, checkout: bool = True) -> str:
@@ -207,11 +193,11 @@ def git_branch_create(repo_path: str, branch_name: str, checkout: bool = True) -
     """
     logger.info(f"Creating branch '{branch_name}' in {repo_path}")
     cmd = ["git", "branch", branch_name]
-    result = github_agent_logic._run_command(cmd, cwd=repo_path)
+    result = run_command(cmd, cwd=repo_path)
 
     if checkout and "Error" not in result:
         checkout_cmd = ["git", "checkout", branch_name]
-        checkout_result = github_agent_logic._run_command(checkout_cmd, cwd=repo_path)
+        checkout_result = run_command(checkout_cmd, cwd=repo_path)
         return f"{result}\n{checkout_result}"
     return result
 
@@ -225,7 +211,7 @@ def git_checkout(repo_path: str, branch_name: str) -> str:
         branch_name: Branch name to checkout
     """
     logger.info(f"Checking out branch '{branch_name}' in {repo_path}")
-    return github_agent_logic._run_command(["git", "checkout", branch_name], cwd=repo_path)
+    return run_command(["git", "checkout", branch_name], cwd=repo_path)
 
 @tool
 def git_log(repo_path: str, max_count: int = 10) -> str:
@@ -237,7 +223,7 @@ def git_log(repo_path: str, max_count: int = 10) -> str:
         max_count: Maximum number of commits to show (default: 10)
     """
     logger.info(f"Getting git log in {repo_path}")
-    return github_agent_logic._run_command(
+    return run_command(
         ["git", "log", f"--max-count={max_count}", "--oneline"],
         cwd=repo_path
     )
@@ -264,7 +250,7 @@ def gh_pr_create(repo_path: str, title: str, body: str, base: Optional[str] = No
         cmd.extend(["--base", base])
     if head:
         cmd.extend(["--head", head])
-    return github_agent_logic._run_command(cmd, cwd=repo_path)
+    return run_command(cmd, cwd=repo_path)
 
 @tool
 def gh_pr_list(repo_path: str, state: str = "open", limit: int = 10) -> str:
@@ -277,7 +263,7 @@ def gh_pr_list(repo_path: str, state: str = "open", limit: int = 10) -> str:
         limit: Maximum number of PRs to list (default: 10)
     """
     logger.info(f"Listing PRs in {repo_path}")
-    return github_agent_logic._run_command(
+    return run_command(
         ["gh", "pr", "list", "--state", state, "--limit", str(limit)],
         cwd=repo_path
     )
@@ -292,7 +278,7 @@ def gh_pr_view(pr_number: str, repo_path: Optional[str] = None) -> str:
         repo_path: Path to the Git repository (optional)
     """
     logger.info(f"Viewing PR #{pr_number}")
-    return github_agent_logic._run_command(["gh", "pr", "view", pr_number], cwd=repo_path)
+    return run_command(["gh", "pr", "view", pr_number], cwd=repo_path)
 
 @tool
 def gh_pr_merge(pr_number: str, repo_path: Optional[str] = None, merge_method: str = "merge") -> str:
@@ -305,7 +291,7 @@ def gh_pr_merge(pr_number: str, repo_path: Optional[str] = None, merge_method: s
         merge_method: Merge method: merge, squash, rebase (default: merge)
     """
     logger.info(f"Merging PR #{pr_number} using {merge_method}")
-    return github_agent_logic._run_command(
+    return run_command(
         ["gh", "pr", "merge", pr_number, f"--{merge_method}"],
         cwd=repo_path
     )
@@ -321,7 +307,7 @@ def gh_pr_comment(pr_number: str, body: str, repo_path: Optional[str] = None) ->
         repo_path: Path to the Git repository (optional)
     """
     logger.info(f"Adding comment to PR #{pr_number}")
-    return github_agent_logic._run_command(
+    return run_command(
         ["gh", "pr", "comment", pr_number, "--body", body],
         cwd=repo_path
     )
@@ -336,7 +322,7 @@ def gh_pr_checkout(pr_number: str, repo_path: Optional[str] = None) -> str:
         repo_path: Path to the Git repository (optional)
     """
     logger.info(f"Checking out PR #{pr_number}")
-    return github_agent_logic._run_command(["gh", "pr", "checkout", pr_number], cwd=repo_path)
+    return run_command(["gh", "pr", "checkout", pr_number], cwd=repo_path)
 
 # ============================================================================
 # Issue Operations
@@ -353,7 +339,7 @@ def gh_issue_create(repo_path: str, title: str, body: str) -> str:
         body: Issue description
     """
     logger.info(f"Creating issue in {repo_path}")
-    return github_agent_logic._run_command(
+    return run_command(
         ["gh", "issue", "create", "--title", title, "--body", body],
         cwd=repo_path
     )
@@ -369,7 +355,7 @@ def gh_issue_list(repo_path: str, state: str = "open", limit: int = 10) -> str:
         limit: Maximum number of issues to list (default: 10)
     """
     logger.info(f"Listing issues in {repo_path}")
-    return github_agent_logic._run_command(
+    return run_command(
         ["gh", "issue", "list", "--state", state, "--limit", str(limit)],
         cwd=repo_path
     )
@@ -384,7 +370,7 @@ def gh_issue_view(issue_number: str, repo_path: Optional[str] = None) -> str:
         repo_path: Path to the Git repository (optional)
     """
     logger.info(f"Viewing issue #{issue_number}")
-    return github_agent_logic._run_command(["gh", "issue", "view", issue_number], cwd=repo_path)
+    return run_command(["gh", "issue", "view", issue_number], cwd=repo_path)
 
 @tool
 def gh_issue_close(issue_number: str, repo_path: Optional[str] = None, comment: Optional[str] = None) -> str:
@@ -400,7 +386,7 @@ def gh_issue_close(issue_number: str, repo_path: Optional[str] = None, comment: 
     cmd = ["gh", "issue", "close", issue_number]
     if comment:
         cmd.extend(["--comment", comment])
-    return github_agent_logic._run_command(cmd, cwd=repo_path)
+    return run_command(cmd, cwd=repo_path)
 
 @tool
 def gh_issue_comment(issue_number: str, body: str, repo_path: Optional[str] = None) -> str:
@@ -413,7 +399,7 @@ def gh_issue_comment(issue_number: str, body: str, repo_path: Optional[str] = No
         repo_path: Path to the Git repository (optional)
     """
     logger.info(f"Adding comment to issue #{issue_number}")
-    return github_agent_logic._run_command(
+    return run_command(
         ["gh", "issue", "comment", issue_number, "--body", body],
         cwd=repo_path
     )
@@ -434,7 +420,7 @@ def gh_release_create(repo_path: str, tag: str, title: str, notes: str) -> str:
         notes: Release notes
     """
     logger.info(f"Creating release {tag} in {repo_path}")
-    return github_agent_logic._run_command(
+    return run_command(
         ["gh", "release", "create", tag, "--title", title, "--notes", notes],
         cwd=repo_path
     )
@@ -449,7 +435,7 @@ def gh_release_list(repo_path: str, limit: int = 10) -> str:
         limit: Maximum number of releases to list (default: 10)
     """
     logger.info(f"Listing releases in {repo_path}")
-    return github_agent_logic._run_command(
+    return run_command(
         ["gh", "release", "list", "--limit", str(limit)],
         cwd=repo_path
     )
@@ -464,7 +450,7 @@ def gh_release_view(tag: str, repo_path: Optional[str] = None) -> str:
         repo_path: Path to the Git repository (optional)
     """
     logger.info(f"Viewing release {tag}")
-    return github_agent_logic._run_command(["gh", "release", "view", tag], cwd=repo_path)
+    return run_command(["gh", "release", "view", tag], cwd=repo_path)
 
 # ============================================================================
 # All Available Tools for the GitHub Agent
