@@ -12,16 +12,14 @@ consistency across different command agent implementations.
 """
 
 import os
-import logging
 from typing import Optional, List, Callable, Any
+from loguru import logger
 from langchain_core.tools import BaseTool
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from src.models.state import OverallState
 from src.utils.llm import get_llm, Provider
 from src.utils.logging import setup_agent_logger
-
-logger = logging.getLogger(__name__)
 
 
 class BaseCommandAgent:

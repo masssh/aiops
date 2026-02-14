@@ -6,10 +6,8 @@ logs the command being executed and its results.
 """
 
 import subprocess
-import logging
 from typing import Optional
-
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 
 def run_command(cmd: list[str], cwd: Optional[str] = None) -> str:

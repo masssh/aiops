@@ -1,5 +1,5 @@
 """
-Centralized logging configuration for all agents.
+Centralized logging configuration for all agents using loguru.
 
 This module provides a common logging setup that reads configuration from
 environment variables (.env file) to control log levels for both file and
@@ -14,13 +14,18 @@ Environment Variables:
 
 import os
 import sys
-import logging
 from datetime import datetime
 from pathlib import Path
+from loguru import logger
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+
+# Store logger IDs for cleanup
+_logger_ids = {}
+# Track if default handler has been removed
+_default_handler_removed = False
 
 
 def get_project_root() -> Path:
@@ -44,7 +49,7 @@ def get_project_root() -> Path:
 def setup_agent_logger(
     agent_name: str,
     log_dir: str | None = None
-) -> logging.Logger:
+):
     """
     Set up a dedicated logger for an agent with both file and console output.
 
@@ -53,7 +58,7 @@ def setup_agent_logger(
         log_dir: Directory to store log files (default: reads from LOG_DIR env var or <project_root>/logs)
 
     Returns:
-        Configured logger instance
+        Configured logger instance (loguru logger)
 
     Example:
         >>> logger = setup_agent_logger("github_agent")
@@ -78,44 +83,51 @@ def setup_agent_logger(
     file_level_str = os.getenv("LOG_LEVEL_FILE", "INFO").upper()
     console_level_str = os.getenv("LOG_LEVEL_CONSOLE", "INFO").upper()
 
-    # Convert string to logging level, with fallback to default if invalid
-    file_level = getattr(logging, file_level_str, logging.INFO)
-    console_level = getattr(logging, console_level_str, logging.INFO)
+    # Remove default handler on first setup
+    global _default_handler_removed
+    if not _default_handler_removed:
+        logger.remove()
+        _default_handler_removed = True
 
-    # Create logger
-    logger = logging.getLogger(agent_name)
-    logger.setLevel(min(file_level, console_level))  # Set to the minimum level needed
+    # Remove any existing handlers for this agent
+    if agent_name in _logger_ids:
+        for logger_id in _logger_ids[agent_name]:
+            logger.remove(logger_id)
+        _logger_ids[agent_name] = []
+    else:
+        _logger_ids[agent_name] = []
 
-    # Remove existing handlers to avoid duplicates
-    logger.handlers = []
-
-    # Create formatters
-    detailed_formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
-    console_formatter = logging.Formatter(
-        '%(asctime)s - %(levelname)s - %(message)s',
-        datefmt='%H:%M:%S'
-    )
-
-    # File handler with timestamp
+    # File handler with timestamp and detailed format
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_file = log_path / f"{agent_name}_{timestamp}.log"
-    file_handler = logging.FileHandler(log_file, encoding='utf-8')
-    file_handler.setLevel(file_level)
-    file_handler.setFormatter(detailed_formatter)
 
-    # Console handler
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(console_level)
-    console_handler.setFormatter(console_formatter)
+    file_handler_id = logger.add(
+        log_file,
+        level=file_level_str,
+        format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{extra[agent_name]}</cyan> | <level>{message}</level>",
+        encoding="utf-8",
+        enqueue=True,  # Thread-safe logging
+        backtrace=True,  # Better error tracing
+        diagnose=True,  # Detailed exception information
+        filter=lambda record: record["extra"].get("agent_name") == agent_name
+    )
+    _logger_ids[agent_name].append(file_handler_id)
 
-    # Add handlers
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
+    # Console handler with colorized output and simplified format
+    console_handler_id = logger.add(
+        sys.stdout,
+        level=console_level_str,
+        format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>",
+        colorize=True,
+        enqueue=True,
+        filter=lambda record: record["extra"].get("agent_name") == agent_name
+    )
+    _logger_ids[agent_name].append(console_handler_id)
 
-    logger.info(f"{agent_name} logger initialized. Log file: {log_file}")
-    logger.debug(f"Log levels - File: {file_level_str}, Console: {console_level_str}")
+    # Bind agent_name to logger context
+    agent_logger = logger.bind(agent_name=agent_name)
 
-    return logger
+    agent_logger.info(f"{agent_name} logger initialized. Log file: {log_file}")
+    agent_logger.debug(f"Log levels - File: {file_level_str}, Console: {console_level_str}")
+
+    return agent_logger

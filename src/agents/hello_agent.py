@@ -1,12 +1,10 @@
-import logging
 from typing import Optional, List
+from loguru import logger
 from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 from src.models.state import OverallState
 from src.agents.base_command_agent import BaseCommandAgent
-
-logger = logging.getLogger(__name__)
 
 
 class HelloAgent(BaseCommandAgent):

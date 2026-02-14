@@ -1,14 +1,12 @@
 import os
-import logging
 from typing import Optional, List
+from loguru import logger
 from langchain_core.tools import tool, BaseTool
 from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
 from src.models.state import OverallState
 from src.agents.base_command_agent import BaseCommandAgent
 from src.utils.command import run_command
-
-logger = logging.getLogger(__name__)
 
 # ============================================================================
 # Java Environment Operations
