@@ -527,6 +527,7 @@ def github_agent(state: OverallState, config: RunnableConfig = None) -> OverallS
                 "provider": "ollama",
                 "model": "qwen3:8b",
                 "github_agent_prompt": "Your custom instructions...",
+                "project_root": "/path/to/project",  # Optional: project root directory
                 "max_iterations": 20  # Optional: override default iteration limit
             }
         }
@@ -536,7 +537,11 @@ def github_agent(state: OverallState, config: RunnableConfig = None) -> OverallS
     custom_prompt = configurable.get("github_agent_prompt")
     provider: Provider = configurable.get("provider", "ollama")
     model: str | None = configurable.get("model", None)
+    project_root: str = configurable.get("project_root", os.getcwd())
     max_iterations: int = configurable.get("max_iterations", 20)
+
+    # Calculate workspace directory absolute path
+    workspace_dir = os.path.abspath(os.path.join(project_root, "workspace"))
 
     # Initialize LLM with all Git/GitHub tools
     llm = get_llm(provider=provider, model=model)
@@ -548,6 +553,10 @@ def github_agent(state: OverallState, config: RunnableConfig = None) -> OverallS
     # System message defining the agent's capabilities
     system_msg = SystemMessage(content=(
         "You are a comprehensive Git and GitHub automation assistant with access to the following capabilities:\n\n"
+        "**IMPORTANT: Workspace Directory Convention**\n"
+        f"- ALL repositories MUST be cloned to: {workspace_dir}\n"
+        f"- When cloning repositories, use this absolute path format: {workspace_dir}/repo-name\n"
+        "- This is a strict requirement for repository analysis workflows\n\n"
         "**Repository Management:**\n"
         "- Clone repositories (gh_repo_clone, git_clone)\n"
         "- Fork repositories (gh_repo_fork)\n"
