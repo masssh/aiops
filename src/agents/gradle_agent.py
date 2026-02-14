@@ -16,14 +16,91 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 @tool
-def detect_java_version(project_path: str) -> str:
+def detect_required_java_version(project_path: str) -> str:
     """
-    Detect the Java version currently configured for the project.
+    Detect the Java version required by the Gradle project.
+    Checks build.gradle, gradle.properties, and gradle-wrapper.properties.
+
+    Args:
+        project_path: Path to the Gradle project
+
+    Returns:
+        String describing the required Java version or an error message
+    """
+    logger.info(f"Detecting required Java version for {project_path}")
+
+    import re
+    from pathlib import Path
+
+    required_version = None
+    source = None
+
+    # Check gradle.properties
+    gradle_props_path = Path(project_path) / "gradle.properties"
+    if gradle_props_path.exists():
+        with open(gradle_props_path, 'r') as f:
+            content = f.read()
+            # Look for patterns like: javaVersion=17, java.version=17, targetCompatibility=17
+            match = re.search(r'(?:java\.?[Vv]ersion|targetCompatibility)\s*=\s*([0-9]+)', content)
+            if match:
+                required_version = match.group(1)
+                source = "gradle.properties"
+
+    # Check build.gradle (Groovy)
+    if not required_version:
+        build_gradle_path = Path(project_path) / "build.gradle"
+        if build_gradle_path.exists():
+            with open(build_gradle_path, 'r') as f:
+                content = f.read()
+                # Look for patterns like: sourceCompatibility = '17', targetCompatibility = JavaVersion.VERSION_17
+                match = re.search(r'(?:source|target)Compatibility\s*=\s*["\']?(?:JavaVersion\.VERSION_)?([0-9]+)', content)
+                if match:
+                    required_version = match.group(1)
+                    source = "build.gradle"
+
+    # Check build.gradle.kts (Kotlin)
+    if not required_version:
+        build_gradle_kts_path = Path(project_path) / "build.gradle.kts"
+        if build_gradle_kts_path.exists():
+            with open(build_gradle_kts_path, 'r') as f:
+                content = f.read()
+                match = re.search(r'(?:source|target)Compatibility\s*=\s*JavaVersion\.VERSION_([0-9]+)', content)
+                if match:
+                    required_version = match.group(1)
+                    source = "build.gradle.kts"
+
+    # Check gradle-wrapper.properties for Gradle version, then infer Java requirements
+    if not required_version:
+        wrapper_props_path = Path(project_path) / "gradle" / "wrapper" / "gradle-wrapper.properties"
+        if wrapper_props_path.exists():
+            with open(wrapper_props_path, 'r') as f:
+                content = f.read()
+                match = re.search(r'distributionUrl=.*gradle-([0-9]+\.[0-9]+)', content)
+                if match:
+                    gradle_version = match.group(1)
+                    # Gradle 8.5+ requires Java 17+, Gradle 7.x requires Java 11+
+                    major_version = int(gradle_version.split('.')[0])
+                    if major_version >= 8:
+                        required_version = "17"
+                        source = f"gradle-wrapper.properties (Gradle {gradle_version} requires Java 17+)"
+                    elif major_version >= 7:
+                        required_version = "11"
+                        source = f"gradle-wrapper.properties (Gradle {gradle_version} requires Java 11+)"
+
+    if required_version:
+        return f"Required Java version: {required_version} (detected from {source})"
+    else:
+        return "Could not determine required Java version from project configuration. Manual inspection may be needed."
+
+@tool
+def detect_current_java_version(project_path: str) -> str:
+    """
+    Detect the Java version currently active in the environment.
 
     Args:
         project_path: Path to the Gradle project
     """
-    logger.info(f"Detecting Java version in {project_path}")
+    logger.info(f"Detecting current Java version in {project_path}")
     return run_command(["java", "-version"], cwd=project_path)
 
 @tool
@@ -318,7 +395,8 @@ def gradle_properties(project_path: str, project_name: Optional[str] = None) -> 
 
 ALL_GRADLE_TOOLS = [
     # Java Environment Operations
-    detect_java_version,
+    detect_required_java_version,
+    detect_current_java_version,
     setup_mise_java,
     ensure_gradlew,
     # Gradle Wrapper Operations
@@ -408,7 +486,8 @@ def gradle_agent(state: OverallState, config: Optional[RunnableConfig] = None) -
         f"- When working with Gradle projects, use this absolute path format: {workspace_dir}/project-name\n"
         "- This is a strict requirement for build and analysis workflows\n\n"
         "**Java Environment Operations:**\n"
-        "- Detect Java version (detect_java_version)\n"
+        "- Detect required Java version from project (detect_required_java_version)\n"
+        "- Detect current active Java version (detect_current_java_version)\n"
         "- Set up Java version using mise (setup_mise_java)\n"
         "- Ensure Gradle Wrapper exists or create it (ensure_gradlew)\n\n"
         "**Build Operations:**\n"
@@ -431,10 +510,13 @@ def gradle_agent(state: OverallState, config: Optional[RunnableConfig] = None) -
         "**Gradle Wrapper:**\n"
         "- Check Gradle version (gradlew_version)\n"
         "- Upgrade Gradle Wrapper (gradlew_wrapper_upgrade)\n\n"
-        "**Important Workflow:**\n"
-        "1. Before executing any Gradle commands, always use 'ensure_gradlew' to verify/create the Gradle Wrapper\n"
-        "2. Detect Java version using 'detect_java_version' to understand the current environment\n"
-        "3. If a specific Java version is required, use 'setup_mise_java' to configure it\n\n"
+        "**CRITICAL: Pre-execution Checks (MUST BE PERFORMED FIRST)**\n"
+        "Before executing ANY Gradle operations, you MUST perform these checks in order:\n"
+        "1. Detect required Java version: Use 'detect_required_java_version' to determine what JDK version the repository needs\n"
+        "2. Check current Java version: Use 'detect_current_java_version' to see what JDK version is currently active\n"
+        "3. Switch Java version if needed: If the current version doesn't match the required version, use 'setup_mise_java' to switch using mise\n"
+        "4. Ensure Gradle Wrapper exists: Use 'ensure_gradlew' to verify or create the Gradle Wrapper (gradlew)\n\n"
+        "Only after completing these pre-execution checks should you proceed with the actual Gradle operations.\n\n"
         "Use these tools to accomplish the requested Gradle build tasks efficiently."
     ))
 
