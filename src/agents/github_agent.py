@@ -530,7 +530,8 @@ def github_agent(state: OverallState, config: Optional[RunnableConfig] = None) -
                 "github_agent_prompt": "Your custom instructions...",
                 "project_root": "/path/to/project",  # Optional: project root directory
                 "max_iterations": 20,  # Optional: override default iteration limit
-                "log_dir": "logs"  # Optional: directory for log files
+                "log_dir": "logs",  # Optional: directory for log files
+                "verbose": False  # Optional: whether to print out LLM response text
             }
         }
     """
@@ -542,6 +543,7 @@ def github_agent(state: OverallState, config: Optional[RunnableConfig] = None) -
     project_root: str = configurable.get("project_root", os.getcwd())
     max_iterations: int = configurable.get("max_iterations", 20)
     log_dir: str = configurable.get("log_dir", "logs")
+    verbose: bool = configurable.get("verbose", False)
 
     # Set up dedicated logger for this agent execution
     agent_logger = setup_agent_logger("github_agent", log_dir)
@@ -552,13 +554,14 @@ def github_agent(state: OverallState, config: Optional[RunnableConfig] = None) -
     agent_logger.info("="*80)
     agent_logger.info("GitHub Agent started")
     agent_logger.info(f"Provider: {provider}, Model: {model}")
+    agent_logger.info(f"Verbose: {verbose}")
     agent_logger.info(f"Project root: {project_root}")
     agent_logger.info(f"Workspace directory: {workspace_dir}")
     agent_logger.info(f"Max iterations: {max_iterations}")
     agent_logger.info("="*80)
 
     # Initialize LLM with all Git/GitHub tools
-    llm = get_llm(provider=provider, model=model)
+    llm = get_llm(provider=provider, model=model, verbose=verbose)
     llm_with_tools = llm.bind_tools(ALL_GITHUB_TOOLS)
 
     # Extract context from state

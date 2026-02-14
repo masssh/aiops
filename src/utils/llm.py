@@ -15,7 +15,8 @@ def get_llm(
     model: str | None = None,
     temperature: float = 0,
     timeout: float | None = None,
-    stop: list[str] | None = None
+    stop: list[str] | None = None,
+    verbose: bool = False
 ):
     """
     Initializes and returns an LLM based on the specified provider.
@@ -26,6 +27,7 @@ def get_llm(
         temperature: Temperature for generation (0-1)
         timeout: Request timeout in seconds (OpenAI, Anthropic only)
         stop: Stop sequences for generation (OpenAI, Anthropic only)
+        verbose: Whether to print out response text during generation
 
     Returns:
         An initialized LLM instance
@@ -39,7 +41,8 @@ def get_llm(
 
         return ChatGoogleGenerativeAI(
             model=model or "gemini-flash-latest",
-            temperature=temperature
+            temperature=temperature,
+            verbose=verbose
         )
 
     elif provider == "openai":
@@ -49,6 +52,7 @@ def get_llm(
         openai_kwargs: dict[str, Any] = {
             "model": model or "gpt-4o",
             "temperature": temperature,
+            "verbose": verbose,
         }
         if timeout is not None:
             openai_kwargs["timeout"] = timeout
@@ -65,13 +69,15 @@ def get_llm(
             model_name=model or "claude-sonnet-4-5-20250929",
             temperature=temperature,
             timeout=timeout,
-            stop=stop
+            stop=stop,
+            verbose=verbose
         )
 
     elif provider == "ollama":
         return ChatOllama(
             model=model or "qwen3:8b",
-            temperature=temperature
+            temperature=temperature,
+            verbose=verbose
         )
 
     else:
