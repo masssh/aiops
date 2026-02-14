@@ -150,7 +150,7 @@ class BaseCommandAgent:
         tool_args = tool_call["args"]
 
         self.agent_logger.info(f"\n--- Executing tool: {tool_name} ---")
-        self.agent_logger.debug(f"Tool arguments: {tool_args}")
+        self.agent_logger.info(f"Tool arguments: {tool_args}")
 
         # Find and invoke the appropriate tool
         tool_function = None
@@ -161,10 +161,10 @@ class BaseCommandAgent:
 
         if tool_function:
             try:
-                self.agent_logger.debug(f"Invoking {tool_name}...")
+                self.agent_logger.info(f"Invoking {tool_name}...")
                 result = tool_function.invoke(tool_args)
                 self.agent_logger.info(f"Tool execution successful")
-                self.agent_logger.debug(f"Tool result: {result}")
+                self.agent_logger.info(f"Tool result: {result}")
                 return str(result)
             except Exception as e:
                 result = f"Error executing {tool_name}: {str(e)}"
@@ -200,13 +200,13 @@ class BaseCommandAgent:
             self.agent_logger.info(f"{'='*80}")
 
             # Invoke LLM to decide next action
-            self.agent_logger.debug("Invoking LLM to determine next action...")
+            self.agent_logger.info("Invoking LLM to determine next action...")
             ai_msg = llm_with_tools.invoke(messages)
             messages.append(ai_msg)
 
             # Log LLM's response content (if any)
             if hasattr(ai_msg, 'content') and ai_msg.content:
-                self.agent_logger.debug(f"LLM response content: {ai_msg.content}")
+                self.agent_logger.info(f"LLM response content: {ai_msg.content}")
 
             if not ai_msg.tool_calls:
                 # LLM decided it's done
@@ -243,7 +243,7 @@ class BaseCommandAgent:
         system_msg = self.get_system_message()
         user_prompt = self.get_user_prompt()
 
-        self.agent_logger.debug(f"Full user prompt:\n{user_prompt}")
+        self.agent_logger.info(f"Full user prompt:\n{user_prompt}")
 
         # Initialize LLM with tools
         llm = get_llm(provider=self.provider, model=self.model, verbose=self.verbose)
