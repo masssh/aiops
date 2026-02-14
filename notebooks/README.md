@@ -46,6 +46,11 @@ Git/GitHub操作のための包括的なエージェント。
 - Issue管理
 - Release管理
 
+**思考過程のロギング機能:**
+- LLMの判断、ツール選択、実行結果を詳細にログ記録
+- 標準出力（INFO レベル以上）とログファイル（全ログ）に同時出力
+- ログファイル: `logs/github_agent_YYYYMMDD_HHMMSS.log`
+
 **使い方:**
 1. notebookを開く
 2. セットアップセルを実行すると、**自動的に `products.yaml` が読み込まれます**
@@ -59,6 +64,14 @@ result = github_agent(state, config)
 
 # カスタム指示
 PROMPT = "リポジトリ owner/repo を workspace/repo にクローンしてください"
+
+# ログディレクトリのカスタマイズ
+config = RunnableConfig(
+    configurable={
+        "log_dir": "../logs",  # ログファイルの出力先
+        ...
+    }
+)
 ```
 
 ### 3. gradle_agent.ipynb
