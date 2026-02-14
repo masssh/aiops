@@ -60,26 +60,6 @@ python3 -m pytest tests/test_hello_agent.py
 python3 src/main.py
 ```
 
-### Jupyter Notebookで対話的に実行
-
-各agentをJupyter notebookで対話的に実行できます。promptを渡すだけで簡単に使えます。
-
-```bash
-# Jupyter Labを起動
-./start_notebook.sh
-
-# または直接
-jupyter lab
-```
-
-利用可能なnotebook:
-- `notebooks/hello_agent.ipynb` - LLMプロバイダーのテスト
-- `notebooks/github_agent.ipynb` - Git/GitHub操作（クローン、PR作成など）
-- `notebooks/gradle_agent.ipynb` - Gradleプロジェクト解析
-
-詳細は [notebooks/README.md](notebooks/README.md) を参照してください。
-
-
 
 ## LangGraph Studio
 

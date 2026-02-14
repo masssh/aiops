@@ -40,12 +40,10 @@ def main():
             print(f"Running specific agent: {args.agent}")
             from src.agents.github_agent import github_agent
             from src.agents.hello_agent import hello_agent
-            from src.agents.gradle_agent import gradle_agent
-            
+
             agent_map = {
                 "github": github_agent,
                 "hello": hello_agent,
-                "gradle": gradle_agent
             }
             
             if args.agent in agent_map:
