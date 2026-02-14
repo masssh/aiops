@@ -69,9 +69,8 @@ def get_llm(
         )
 
     elif provider == "ollama":
-        # Ollama runs locally and doesn't require an API key
         return ChatOllama(
-            model=model or "llama3.3",
+            model=model or "qwen2.5-coder:7b",
             temperature=temperature
         )
 
