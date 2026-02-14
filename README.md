@@ -61,6 +61,106 @@ python3 src/main.py
 ```
 
 
+## Agent の種類
+
+このシステムは複数のSpecialized Agentを提供しています。
+各Agentの詳細な使い方は、対応するドキュメントを参照してください。
+
+### GitHub Agent (`src/agents/github_agent.py`)
+
+📖 **詳細**: [GitHub Agent 使用ガイド](docs/github_agent_usage.md)
+
+Git/GitHub操作を専門に担当するAgent。以下の機能を提供：
+
+**リポジトリ管理:**
+- リポジトリのクローン (`gh_repo_clone`, `git_clone`)
+- リポジトリのフォーク (`gh_repo_fork`)
+- リポジトリ情報の表示 (`gh_repo_view`)
+
+**Git基本操作:**
+- ステータス確認 (`git_status`)
+- プル/プッシュ (`git_pull`, `git_push`)
+- ブランチ作成/切り替え (`git_branch_create`, `git_checkout`)
+- コミット (`git_add`, `git_commit`)
+
+**Pull Request:**
+- PR作成 (`gh_pr_create`)
+- PR一覧/詳細表示 (`gh_pr_list`, `gh_pr_view`)
+- PRマージ (`gh_pr_merge`)
+- PRコメント (`gh_pr_comment`)
+
+**Issue管理:**
+- Issue作成/クローズ (`gh_issue_create`, `gh_issue_close`)
+- Issue一覧/詳細表示 (`gh_issue_list`, `gh_issue_view`)
+- Issueコメント (`gh_issue_comment`)
+
+**Release管理:**
+- Release作成 (`gh_release_create`)
+- Release一覧/詳細表示 (`gh_release_list`, `gh_release_view`)
+
+### Gradle Agent (`src/agents/gradle_agent.py`)
+
+📖 **詳細**: [Gradle Agent 使用ガイド](docs/gradle_agent_usage.md)
+
+Gradleビルドシステムを専門に担当するAgent。以下の機能を提供：
+
+**ビルド操作:**
+- プロジェクトのビルド (`gradle_build`)
+- クリーン (`gradle_clean`)
+- アセンブル (`gradle_assemble`)
+
+**テスト操作:**
+- テスト実行 (`gradle_test`)
+- 検証タスク実行 (`gradle_check`)
+
+**タスク管理:**
+- タスク一覧表示 (`gradle_tasks`)
+- 特定タスクの実行 (`gradle_run_task`)
+
+**依存関係分析:**
+- 依存関係ツリー表示 (`gradle_dependencies`)
+- 依存関係の詳細情報 (`gradle_dependency_insight`)
+- ビルド環境情報 (`gradle_build_environment`)
+
+**プロジェクト情報:**
+- プロジェクト一覧 (`gradle_projects`)
+- プロジェクトプロパティ表示 (`gradle_properties`)
+
+**Gradle Wrapper:**
+- バージョン確認 (`gradlew_version`)
+- Wrapperアップグレード (`gradlew_wrapper_upgrade`)
+
+### Base Command Agent (`src/agents/base_command_agent.py`)
+
+📖 **詳細**: [Base Command Agent 開発ガイド](docs/base_command_agent_usage.md)
+
+GitHub AgentやGradle Agentのような、コマンドラインツールを操作するAgentの共通基盤。
+新しいコマンド系Agentを実装する際のベースクラスとして使用可能。
+
+**提供機能:**
+- 設定管理の標準化
+- ロギングの自動セットアップ
+- ツール実行ループの共通化
+- LLMとの統一的なインタラクションパターン
+
+**カスタムAgentの作成**:
+Base Command Agentを継承して、独自のコマンドラインツール用Agentを作成できます。
+詳細は[開発ガイド](docs/base_command_agent_usage.md)を参照してください。
+
+## ログ出力
+
+Agent実行時のログは以下のように出力されます：
+
+```
+logs/
+├── {agent_name}_{timestamp}.log  # Agent実行ごとの詳細ログ
+└── app.log                       # アプリケーション全体のログ
+```
+
+環境変数で以下のログレベルを設定可能：
+- `LOG_LEVEL_FILE`: ファイル出力のログレベル（デフォルト: DEBUG）
+- `LOG_LEVEL_CONSOLE`: コンソール出力のログレベル（デフォルト: INFO）
+
 ## LangGraph Studio
 
 
