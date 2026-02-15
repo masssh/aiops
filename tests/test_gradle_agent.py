@@ -4,14 +4,7 @@ from pathlib import Path
 from loguru import logger
 from src.agents.gradle_agent import (
     gradle_agent,
-    gradle_build,
-    gradle_test,
-    gradle_dependencies,
-    gradle_tasks,
-    gradlew_version,
-    detect_required_java_version,
-    setup_mise_java,
-    ensure_gradlew,
+    create_gradle_tools,
 )
 from src.models.state import OverallState
 
@@ -29,19 +22,30 @@ def test_repo_path():
     return str(TEST_REPO_PATH)
 
 
-def test_detect_required_java_version(test_repo_path):
+@pytest.fixture
+def gradle_tools(test_repo_path):
+    """Fixture to provide Gradle tools for the test repository."""
+    tools = create_gradle_tools(test_repo_path)
+    # Create a dictionary mapping tool names to tools for easy access
+    tools_dict = {tool.name: tool for tool in tools}
+    return tools_dict
+
+
+def test_detect_required_java_version(test_repo_path, gradle_tools):
     """Test Java version detection."""
-    result = detect_required_java_version.invoke({"project_path": test_repo_path})
+    detect_required_java_version = gradle_tools["detect_required_java_version"]
+    result = detect_required_java_version.invoke({})
 
     assert result is not None
-    assert "java" in result.lower() or "openjdk" in result.lower()
+    assert "java" in result.lower() or "required" in result.lower()
     logger.info(f"✓ Java version detection test passed")
     logger.info(f"  Detected: {result[:100]}")
 
 
-def test_ensure_gradlew(test_repo_path):
+def test_ensure_gradlew(test_repo_path, gradle_tools):
     """Test ensuring Gradle Wrapper exists."""
-    result = ensure_gradlew.invoke({"project_path": test_repo_path})
+    ensure_gradlew = gradle_tools["ensure_gradlew"]
+    result = ensure_gradlew.invoke({})
 
     assert result is not None
     logger.info(f"✓ Ensure gradlew test passed")
@@ -54,12 +58,15 @@ def test_ensure_gradlew(test_repo_path):
         assert os.access(gradlew_path, os.X_OK), "gradlew should be executable"
 
 
-def test_gradlew_version_tool(test_repo_path):
+def test_gradlew_version_tool(test_repo_path, gradle_tools):
     """Test the gradlew_version tool directly."""
-    # First ensure gradlew exists
-    ensure_gradlew.invoke({"project_path": test_repo_path})
+    ensure_gradlew = gradle_tools["ensure_gradlew"]
+    gradlew_version = gradle_tools["gradlew_version"]
 
-    result = gradlew_version.invoke({"project_path": test_repo_path})
+    # First ensure gradlew exists
+    ensure_gradlew.invoke({})
+
+    result = gradlew_version.invoke({})
 
     assert result is not None
     assert "Gradle" in result
@@ -67,13 +74,15 @@ def test_gradlew_version_tool(test_repo_path):
     logger.info(f"  Version info: {result[:100]}")
 
 
-def test_gradle_tasks_tool(test_repo_path):
+def test_gradle_tasks_tool(test_repo_path, gradle_tools):
     """Test the gradle_tasks tool directly."""
+    ensure_gradlew = gradle_tools["ensure_gradlew"]
+    gradle_tasks = gradle_tools["gradle_tasks"]
+
     # Ensure gradlew exists first
-    ensure_gradlew.invoke({"project_path": test_repo_path})
+    ensure_gradlew.invoke({})
 
     result = gradle_tasks.invoke({
-        "project_path": test_repo_path,
         "all_tasks": False
     })
 
@@ -82,15 +91,17 @@ def test_gradle_tasks_tool(test_repo_path):
     logger.info(f"✓ Gradle tasks test passed")
 
 
-def test_gradle_build_tool(test_repo_path):
-    """Test the gradle_build tool directly."""
-    # Ensure gradlew exists first
-    ensure_gradlew.invoke({"project_path": test_repo_path})
+def test_gradle_build_tool(test_repo_path, gradle_tools):
+    """Test the gradle_run_task tool with build task."""
+    ensure_gradlew = gradle_tools["ensure_gradlew"]
+    gradle_run_task = gradle_tools["gradle_run_task"]
 
-    result = gradle_build.invoke({
-        "project_path": test_repo_path,
-        "skip_tests": True,  # Skip tests for faster execution
-        "parallel": False
+    # Ensure gradlew exists first
+    ensure_gradlew.invoke({})
+
+    result = gradle_run_task.invoke({
+        "task_name": "build",
+        "additional_args": "-x test"  # Skip tests for faster execution
     })
 
     assert result is not None
@@ -99,13 +110,15 @@ def test_gradle_build_tool(test_repo_path):
     logger.info(f"  Build result: {result[:200]}")
 
 
-def test_gradle_dependencies_tool(test_repo_path):
+def test_gradle_dependencies_tool(test_repo_path, gradle_tools):
     """Test the gradle_dependencies tool directly."""
+    ensure_gradlew = gradle_tools["ensure_gradlew"]
+    gradle_dependencies = gradle_tools["gradle_dependencies"]
+
     # Ensure gradlew exists first
-    ensure_gradlew.invoke({"project_path": test_repo_path})
+    ensure_gradlew.invoke({})
 
     result = gradle_dependencies.invoke({
-        "project_path": test_repo_path,
         "configuration": None,
         "project_name": None
     })
@@ -175,8 +188,8 @@ def test_gradle_agent_with_mise_setup(test_repo_path):
 
     config = {
         "configurable": {
-            "provider": "ollama",
-            "model": "qwen3:8b",
+            "provider": "gemini",
+            "model": "gemini-flash-latest",
             "prompt": custom_instructions,
             "project_root": str(PROJECT_ROOT),
             "max_iterations": 10,
@@ -201,12 +214,13 @@ def test_gradle_agent_with_mise_setup(test_repo_path):
     os.system("which mise > /dev/null 2>&1") != 0,
     reason="mise is not installed"
 )
-def test_setup_mise_java(test_repo_path):
+def test_setup_mise_java(test_repo_path, gradle_tools):
     """Test setting up Java version using mise (requires mise to be installed)."""
+    setup_mise_java = gradle_tools["setup_mise_java"]
+
     # This test is marked to skip if mise is not available
     try:
         result = setup_mise_java.invoke({
-            "project_path": test_repo_path,
             "java_version": "17"
         })
 

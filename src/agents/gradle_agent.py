@@ -326,15 +326,36 @@ def create_gradle_tools(project_path: str) -> List[BaseTool]:
 class GradleAgent(BaseCommandAgent):
     """LangGraph node that uses an LLM with comprehensive Gradle build tool operations."""
 
+    def __init__(self, agent_name: str, state, config):
+        """Initialize GradleAgent with optional repository_name configuration."""
+        super().__init__(agent_name, state, config)
+
+        # Allow specifying a repository by name (relative to workspace) or absolute path
+        repository_name = self.configurable.get("repository_name")
+        gradle_project_path = self.configurable.get("gradle_project_path")
+
+        if repository_name:
+            # Use repository name relative to workspace directory
+            import os
+            self.gradle_project_path = os.path.join(self.workspace_dir, repository_name)
+        elif gradle_project_path:
+            # Use absolute path (for backward compatibility)
+            self.gradle_project_path = gradle_project_path
+        else:
+            # Default to workspace directory
+            self.gradle_project_path = self.workspace_dir
+
+        self.agent_logger.info(f"Gradle project path: {self.gradle_project_path}")
+
     def get_tools(self) -> List[BaseTool]:
         """Return list of available Gradle tools bound to the project path."""
-        return create_gradle_tools(self.workspace_dir)
+        return create_gradle_tools(self.gradle_project_path)
 
     def get_system_message(self) -> SystemMessage:
         """Return system message describing agent capabilities."""
         return SystemMessage(content=(
             "You are a Gradle build automation assistant.\n\n"
-            f"**Working Directory:** All projects are in {self.workspace_dir}\n\n"
+            f"**Gradle Project Path:** {self.gradle_project_path}\n\n"
             "**Available Tools:**\n"
             "- Java Environment: detect_required_java_version, detect_current_java_version, setup_mise_java, ensure_gradlew\n"
             "- Gradle Wrapper: gradlew_version\n"
@@ -368,12 +389,18 @@ def gradle_agent(state: OverallState, config: Optional[RunnableConfig] = None) -
                 "provider": "ollama",
                 "model": "qwen3:8b",
                 "prompt": "Your custom instructions...",
-                "project_root": "/path/to/project",  # Optional: project root directory
+                "project_root": "/path/to/project",  # Optional: project root directory (default: current dir)
+                "repository_name": "springboot-microservices",  # Optional: repository name in workspace/
+                # OR use absolute path:
+                # "gradle_project_path": "/absolute/path/to/gradle/project",  # Optional: absolute path to Gradle project
                 "max_iterations": 20,  # Optional: override default iteration limit
                 "log_dir": "logs",  # Optional: directory for log files
                 "verbose": False  # Optional: whether to print out LLM response text
             }
         }
+
+        Note: repository_name is relative to workspace/ directory (project_root/workspace/repository_name)
+              If neither repository_name nor gradle_project_path is specified, uses workspace directory.
     """
     agent = GradleAgent("gradle_agent", state, config)
     return agent.run()
