@@ -13,8 +13,8 @@ from typing import TYPE_CHECKING, Any
 
 from langchain_core.messages import HumanMessage
 
+from src.core import monitoring
 from src.core.logging import get_logger
-from src.core.monitoring import create_langfuse_handler
 
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
@@ -39,23 +39,37 @@ class BaseAgent(abc.ABC):
     # ------------------------------------------------------------------
 
     def run(self, message: str, **kwargs: Any) -> str:
-        """Invoke the agent with a natural-language *message* and return its reply.
+        """Invoke the agent with a natural-language *message* and return its reply."""
+        if monitoring.is_enabled():
+            return self._run_traced(message, **kwargs)
+        return self._run(message, **kwargs)
 
-        Args:
-            message: The user's instruction or question.
-            **kwargs: Additional values merged into the LangGraph config.
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
 
-        Returns:
-            The agent's final text response.
-        """
+    def _run_traced(self, message: str, **kwargs: Any) -> str:
+        """Run inside a Langfuse trace, propagating session/user attributes."""
+        from langfuse import observe, propagate_attributes  # type: ignore[import-untyped]
+
+        @observe(name=f"agent:{self.name}")
+        def _inner() -> str:
+            attrs: dict[str, str] = {"user_id": "cli"}
+            if self.session_id:
+                attrs["session_id"] = self.session_id
+            with propagate_attributes(**attrs):
+                return self._run(message, **kwargs)
+
+        return _inner()
+
+    def _run(self, message: str, **kwargs: Any) -> str:
+        """Core agent execution."""
         self._logger.info("Agent '{}' received: {!r}", self.name, message[:120])
 
         graph = self._get_graph()
         config = self._build_config(**kwargs)
-
         result = graph.invoke({"messages": [HumanMessage(content=message)]}, config=config)
 
-        # Extract last AI message content
         final_message = result["messages"][-1]
         response: str = (
             final_message.content
@@ -65,10 +79,6 @@ class BaseAgent(abc.ABC):
         self._logger.info("Agent '{}' replied: {!r}", self.name, response[:120])
         return response
 
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
-
     def _get_graph(self) -> "CompiledStateGraph":
         if self._graph is None:
             self._logger.debug("Building LangGraph for agent '{}'", self.name)
@@ -77,19 +87,8 @@ class BaseAgent(abc.ABC):
 
     def _build_config(self, **kwargs: Any) -> dict[str, Any]:
         """Assemble the ``config`` dict passed to ``graph.invoke``."""
-        callbacks: list[Any] = []
-
-        # Langfuse tracing
-        langfuse_cb = create_langfuse_handler(
-            session_id=self.session_id,
-            user_id="cli",
-            trace_name=f"agent:{self.name}",
-        )
-        if langfuse_cb:
-            callbacks.append(langfuse_cb)
-
-        config: dict[str, Any] = {"callbacks": callbacks}
-        config.update(kwargs)
+        callbacks = [cb for cb in [monitoring.get_callback_handler()] if cb]
+        config: dict[str, Any] = {"callbacks": callbacks, **kwargs}
         return config
 
     @abc.abstractmethod

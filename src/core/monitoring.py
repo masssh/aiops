@@ -1,76 +1,64 @@
-"""Langfuse monitoring integration.
+"""Langfuse v3 monitoring integration.
 
-This module provides a factory for ``LangfuseCallbackHandler`` that points
-at the self-hosted Langfuse instance configured in ``.env``.
+Initialises the global Langfuse client once and exposes helpers used by agents.
 
 Usage::
 
-    from src.core.monitoring import create_langfuse_handler
+    from src.core import monitoring
 
-    handler = create_langfuse_handler(session_id="session-abc", user_id="user-1")
-    # Pass to LangChain calls:
-    chain.invoke({"input": "..."}, config={"callbacks": [handler]})
+    if monitoring.is_enabled():
+        # tracing is active
+    handler = monitoring.get_callback_handler()  # None when disabled
 """
 
 from __future__ import annotations
-
-from typing import Any
 
 from src.core.logging import get_logger
 
 logger = get_logger(__name__)
 
+# None = not yet determined, True/False = result of _setup()
+_enabled: bool | None = None
 
-def create_langfuse_handler(
-    session_id: str | None = None,
-    user_id: str | None = None,
-    trace_name: str | None = None,
-    **kwargs: Any,
-) -> Any:
-    """Create a ``LangfuseCallbackHandler`` for the self-hosted Langfuse.
 
-    Returns ``None`` if Langfuse is not configured (missing API keys), so
-    callers can use ``callbacks = [h for h in [handler] if h]``.
+def _setup() -> bool:
+    global _enabled
+    if _enabled is not None:
+        return _enabled
 
-    Args:
-        session_id:  Optional session identifier for grouping traces.
-        user_id:     Optional user identifier.
-        trace_name:  Optional human-readable name for the trace.
-        **kwargs:    Additional keyword arguments forwarded to the handler.
-
-    Returns:
-        A ``LangfuseCallbackHandler`` instance, or ``None``.
-    """
-    from src.core.config import settings  # lazy import
+    from src.core.config import settings
 
     if not settings.langfuse_enabled:
-        logger.debug(
-            "Langfuse not configured (missing LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY) – "
-            "tracing disabled."
-        )
-        return None
+        logger.debug("Langfuse tracing disabled (no API keys configured).")
+        _enabled = False
+        return False
 
     try:
         from langfuse import Langfuse  # type: ignore[import-untyped]
-        from langfuse.langchain import CallbackHandler  # type: ignore[import-untyped]
 
-        # langfuse 3.x: configure the global client, then create the handler
         Langfuse(
             public_key=settings.langfuse_public_key,
             secret_key=settings.langfuse_secret_key,
             host=settings.langfuse_host,
         )
-
-        handler = CallbackHandler(**kwargs)
-        logger.info(
-            "Langfuse tracing enabled – host={}, session={}", settings.langfuse_host, session_id
-        )
-        return handler
-    except ImportError:
-        logger.warning(
-            "langfuse package not installed. Run: pip install 'langfuse>=3'"
-        )
-        return None
+        logger.info("Langfuse tracing enabled – host={}", settings.langfuse_host)
+        _enabled = True
     except Exception as exc:
-        logger.warning("Failed to initialise Langfuse callback handler: {}", exc)
+        logger.warning("Failed to initialise Langfuse client: {}", exc)
+        _enabled = False
+
+    return _enabled
+
+
+def is_enabled() -> bool:
+    """Return True if Langfuse is configured and the client initialised successfully."""
+    return _setup()
+
+
+def get_callback_handler() -> object | None:
+    """Return a LangChain ``CallbackHandler``, or ``None`` when Langfuse is disabled."""
+    if not _setup():
         return None
+    from langfuse.langchain import CallbackHandler  # type: ignore[import-untyped]
+
+    return CallbackHandler()
