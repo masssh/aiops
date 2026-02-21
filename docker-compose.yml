@@ -51,8 +51,10 @@ services:
       LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "true"
       # Telemetry opt-out (optional)
       TELEMETRY_ENABLED: "false"
+      # Bind Next.js to all interfaces so the health check can reach it via 127.0.0.1
+      HOSTNAME: "0.0.0.0"
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/api/public/health || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000/api/public/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
