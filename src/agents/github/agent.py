@@ -1,14 +1,14 @@
 """GitHub operations agent.
 
-This agent wraps a LangGraph ReAct agent equipped with the GitHub tool suite.
-It can answer questions about repositories, issues, pull requests, and files.
+This agent wraps a LangGraph ReAct agent equipped with Git tools for
+cloning repositories and checking out branches.
 
 Example::
 
     from src.agents.github import GitHubAgent
 
     agent = GitHubAgent()
-    response = agent.run("List open issues in octocat/Hello-World")
+    response = agent.run("Clone https://github.com/octocat/Hello-World into /tmp/hello")
     print(response)
 """
 
@@ -31,16 +31,14 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 _SYSTEM_PROMPT = """\
-You are a GitHub expert assistant.
-You have access to a set of tools that interact with the GitHub API.
-Use them to answer the user's questions accurately and concisely.
+You are a Git assistant that can clone repositories and checkout branches.
+You have access to two tools: clone_repository and checkout_branch.
 
 Guidelines:
 - Always prefer using tools over guessing.
-- When listing items, present them as a readable markdown list.
-- If an operation would modify data (e.g. create an issue), confirm the key details
-  before proceeding unless explicitly told to act immediately.
-- If a required parameter like 'owner/repo' is not provided, ask the user to supply it.
+- For clone_repository, you need the repository URL and an optional destination path.
+- For checkout_branch, you need the local repository path and the branch name.
+- If required parameters are missing, ask the user to supply them.
 """
 
 
@@ -48,7 +46,7 @@ class GitHubAgent(BaseAgent):
     """Agent specialised for GitHub operations."""
 
     name: str = "github"
-    description: str = "Interact with GitHub: repos, issues, PRs, and file contents."
+    description: str = "Clone Git repositories and checkout branches locally."
 
     def _build_graph(self) -> "CompiledStateGraph":
         """Build a LangGraph ReAct agent with GitHub tools."""
