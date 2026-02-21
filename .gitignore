@@ -49,3 +49,10 @@ logs/
 /Users/masssh/.gemini/tmp/
 
 .langgraph_api
+
+# uv
+.venv/
+uv.lock
+
+# Docker volumes (keep docker-compose.yml but ignore generated data)
+pgdata/
