@@ -21,6 +21,10 @@ run = ".venv/bin/python main.py --agent github --query \"Clone https://github.co
 description = "Clone octocat/Hello-World and octocat/Spoon-Knife via the main agent"
 run = ".venv/bin/python main.py --agent main --query \"Clone https://github.com/octocat/Hello-World and https://github.com/octocat/Spoon-Knife\""
 
+[tasks.mise-setup]
+description = "Search, list versions, and configure a tool via mise: mise run mise-setup -- 'node 20'"
+run = ".venv/bin/python main.py --agent mise --query \"Search for $1, list the available remote versions, then use version $2 in this project\""
+
 [tasks.install]
 description = "Install dependencies into .venv"
 run = """
