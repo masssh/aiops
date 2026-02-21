@@ -2,7 +2,6 @@
 name = "aiops"
 version = "0.1.0"
 description = "Scalable multi-agent system powered by LangChain/LangGraph and Gemini"
-readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     # LangChain core

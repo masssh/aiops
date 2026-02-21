@@ -1,0 +1,21 @@
+[tools]
+python = "3.11"
+
+[tasks.run]
+description = "Run aiops with the GitHub agent (interactive)"
+run = ".venv/bin/python main.py --agent github"
+
+[tasks.query]
+description = "Run a one-shot query: mise run query -- 'List open issues in octocat/Hello-World'"
+run = ".venv/bin/python main.py --agent github --query \"$@\""
+
+[tasks.debug]
+description = "Run aiops with DEBUG logging enabled"
+run = ".venv/bin/python main.py --agent github --debug-agent github"
+
+[tasks.install]
+description = "Install dependencies into .venv"
+run = """
+[ -d .venv ] || python -m venv .venv
+.venv/bin/pip install -e ".[dev]"
+"""
