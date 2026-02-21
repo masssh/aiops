@@ -38,16 +38,38 @@ from src.core.logging import enable_debug_for_agent, setup_logging  # noqa: E402
 # ---------------------------------------------------------------------------
 # Agent registry
 # ---------------------------------------------------------------------------
-# Add new agents here as the system grows.
 AGENT_REGISTRY: dict[str, type] = {}
 
 def _register_agents() -> None:
-    """Lazily import and register all available agents."""
-    from src.agents.github import GitHubAgent
-    from src.agents.main import MainAgent
+    """Auto-discover and register all agents found under src/agents/.
 
-    AGENT_REGISTRY["github"] = GitHubAgent
-    AGENT_REGISTRY["main"] = MainAgent
+    Each subdirectory of src/agents/ that is a Python package (has __init__.py)
+    is imported. Any class that inherits from BaseAgent and declares a non-base
+    ``name`` attribute is registered automatically, so no manual edits are
+    needed when adding new agents.
+    """
+    import importlib
+    import inspect
+    import pkgutil
+
+    import src.agents as agents_pkg
+    from src.agents.base import BaseAgent
+
+    for _finder, module_name, is_pkg in pkgutil.iter_modules(
+        agents_pkg.__path__, agents_pkg.__name__ + "."
+    ):
+        if not is_pkg:
+            continue  # skip plain modules such as base.py
+
+        module = importlib.import_module(module_name)
+
+        for _attr, obj in inspect.getmembers(module, inspect.isclass):
+            if (
+                issubclass(obj, BaseAgent)
+                and obj is not BaseAgent
+                and obj.name != "base"
+            ):
+                AGENT_REGISTRY[obj.name] = obj
 
 
 # ---------------------------------------------------------------------------
