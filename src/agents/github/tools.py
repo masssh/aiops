@@ -8,6 +8,7 @@ Git operations are delegated to the ``git`` CLI, which must be installed.
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from typing import Annotated
@@ -70,7 +71,13 @@ def clone_repository(
     url: Annotated[str, "Repository URL to clone, e.g. 'https://github.com/owner/repo.git'"],
     destination: Annotated[str, "Local directory path to clone into"] = "",
 ) -> str:
-    """Clone a remote Git repository to a local directory."""
+    """Clone a remote Git repository to a local directory.
+
+    If the target directory already exists and is a Git repository, cloning is
+    skipped and the existing repository is returned as-is.  If the directory
+    exists but is *not* a Git repository, a RuntimeError is raised to avoid
+    accidentally overwriting unrelated files.
+    """
     logger.debug("clone_repository: url={} destination={!r}", url, destination)
     if destination:
         target = destination
@@ -78,6 +85,15 @@ def clone_repository(
         cfg = get_project_config()
         target = str(cfg.workspace / repo_name_from_url(url))
         logger.debug("No destination given; using workspace default: {}", target)
+
+    if os.path.exists(target):
+        if os.path.isdir(os.path.join(target, ".git")):
+            logger.debug("Repository already cloned at {}; skipping clone.", target)
+            return f"Repository already exists at '{target}'. Skipping clone."
+        raise RuntimeError(
+            f"Target path '{target}' already exists but is not a Git repository."
+        )
+
     output = _run_git("clone", url, target)
     return f"Cloned {url} into '{target}'.\n{output}".strip()
 
