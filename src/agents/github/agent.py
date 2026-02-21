@@ -81,11 +81,11 @@ class GitHubAgent(BaseAgent):
         # ----------------------------------------------------------------
 
         graph = StateGraph(MessagesState)
-        graph.add_node("agent", call_model)
+        graph.add_node("github_agent", call_model)
         graph.add_node("tools", tool_node)
 
-        graph.add_edge(START, "agent")
-        graph.add_conditional_edges("agent", should_continue, {"tools": "tools", END: END})
-        graph.add_edge("tools", "agent")  # tools always return to agent
+        graph.add_edge(START, "github_agent")
+        graph.add_conditional_edges("github_agent", should_continue, {"tools": "tools", END: END})
+        graph.add_edge("tools", "github_agent")  # tools always return to agent
 
         return graph.compile()

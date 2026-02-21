@@ -12,7 +12,7 @@ dependencies = [
     # LangGraph for agent orchestration
     "langgraph>=0.2",
     # Monitoring
-    "langfuse>=2.0",
+    "langfuse>=3.0",
     # Logging
     "loguru>=0.7",
     # Configuration

@@ -51,24 +51,24 @@ def create_langfuse_handler(
         return None
 
     try:
-        from langfuse.callback import CallbackHandler  # type: ignore[import-untyped]
+        from langfuse import Langfuse  # type: ignore[import-untyped]
+        from langfuse.langchain import CallbackHandler  # type: ignore[import-untyped]
 
-        handler = CallbackHandler(
+        # langfuse 3.x: configure the global client, then create the handler
+        Langfuse(
             public_key=settings.langfuse_public_key,
             secret_key=settings.langfuse_secret_key,
             host=settings.langfuse_host,
-            session_id=session_id,
-            user_id=user_id,
-            trace_name=trace_name,
-            **kwargs,
         )
+
+        handler = CallbackHandler(**kwargs)
         logger.info(
             "Langfuse tracing enabled – host={}, session={}", settings.langfuse_host, session_id
         )
         return handler
     except ImportError:
         logger.warning(
-            "langfuse package not installed. Run: uv add langfuse"
+            "langfuse package not installed. Run: pip install 'langfuse>=3'"
         )
         return None
     except Exception as exc:
