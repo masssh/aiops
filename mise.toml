@@ -13,6 +13,10 @@ run = ".venv/bin/python main.py --agent github --query \"$@\""
 description = "Run aiops with DEBUG logging enabled"
 run = ".venv/bin/python main.py --agent github --debug-agent github"
 
+[tasks.clone-samples]
+description = "Clone octocat/Hello-World and octocat/Spoon-Knife via the main agent"
+run = ".venv/bin/python main.py --agent main --query \"Clone https://github.com/octocat/Hello-World and https://github.com/octocat/Spoon-Knife\""
+
 [tasks.install]
 description = "Install dependencies into .venv"
 run = """
