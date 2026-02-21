@@ -1,0 +1,3 @@
+# project.yaml — aiops プロジェクト設定
+# workspace: git clone のデフォルト先ディレクトリ（相対パスはプロジェクトルート基準）
+workspace: workspace/repos

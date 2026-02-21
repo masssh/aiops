@@ -15,6 +15,7 @@ from typing import Annotated
 from langchain_core.tools import tool
 
 from src.core.logging import get_logger
+from src.core.project import get_project_config, repo_name_from_url
 
 logger = get_logger(__name__)
 
@@ -71,11 +72,13 @@ def clone_repository(
 ) -> str:
     """Clone a remote Git repository to a local directory."""
     logger.debug("clone_repository: url={} destination={!r}", url, destination)
-    args = ["clone", url]
     if destination:
-        args.append(destination)
-    output = _run_git(*args)
-    target = destination if destination else url.rstrip("/").split("/")[-1].removesuffix(".git")
+        target = destination
+    else:
+        cfg = get_project_config()
+        target = str(cfg.workspace / repo_name_from_url(url))
+        logger.debug("No destination given; using workspace default: {}", target)
+    output = _run_git("clone", url, target)
     return f"Cloned {url} into '{target}'.\n{output}".strip()
 
 

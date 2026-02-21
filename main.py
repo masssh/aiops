@@ -44,7 +44,10 @@ AGENT_REGISTRY: dict[str, type] = {}
 def _register_agents() -> None:
     """Lazily import and register all available agents."""
     from src.agents.github import GitHubAgent
+    from src.agents.main import MainAgent
+
     AGENT_REGISTRY["github"] = GitHubAgent
+    AGENT_REGISTRY["main"] = MainAgent
 
 
 # ---------------------------------------------------------------------------
@@ -60,8 +63,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--agent",
         "-a",
-        default="github",
-        help="Agent to run (default: github). Available: %(choices)s",
+        default="main",
+        help="Agent to run (default: main). Available: %(choices)s",
     )
     parser.add_argument(
         "--query",
@@ -147,6 +150,14 @@ def main() -> int:
     if debug_agent:
         enable_debug_for_agent(debug_agent)
         os.environ["DEBUG_AGENT"] = debug_agent  # propagate to sub-processes
+
+    # ---- Project config validation (fast-fail) --------------------------
+    from src.core.project import get_project_config
+    try:
+        get_project_config()
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"[error] {exc}", file=sys.stderr)
+        return 1
 
     # ---- Agent registry -------------------------------------------------
     _register_agents()
