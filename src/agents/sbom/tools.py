@@ -94,4 +94,74 @@ def create_sbom_tools(project_path: str) -> list:
             lines.append(line)
         return "\n".join(lines)
 
-    return [generate_sbom, list_application_components]
+    @tool
+    def get_application_dependencies(
+        sbom_path: Annotated[
+            str,
+            "Path to the SBOM JSON file. Defaults to sbom.json inside the project directory.",
+        ] = "",
+    ) -> str:
+        """Show direct dependencies for each application component in the SBOM.
+
+        For every component classified as ``"type": "application"`` (root project
+        and sub-modules), looks up its entry in the ``dependencies`` section and
+        lists what it directly depends on, including the type of each dependency.
+        """
+        path = sbom_path or _default_sbom
+        logger.debug("get_application_dependencies: path={!r}", path)
+        if not Path(path).exists():
+            return f"SBOM file not found at '{path}'. Run generate_sbom first."
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+
+        # Build bom-ref -> component lookup from all sources except tools
+        ref_to_comp: dict[str, dict] = {}
+        root = data.get("metadata", {}).get("component", {})
+        if root:
+            ref_to_comp[root["bom-ref"]] = root
+            for child in root.get("components", []):
+                ref_to_comp[child["bom-ref"]] = child
+        for c in data.get("components", []):
+            ref_to_comp[c["bom-ref"]] = c
+
+        # Build ref -> dependsOn lookup from dependencies section
+        dep_map: dict[str, list[str]] = {
+            d["ref"]: d.get("dependsOn", [])
+            for d in data.get("dependencies", [])
+        }
+
+        # Collect application components (root + direct children of root)
+        candidates: list[dict] = []
+        if root:
+            candidates.append(root)
+            candidates.extend(root.get("components", []))
+        apps = [c for c in candidates if c.get("type") == "application"]
+
+        if not apps:
+            return "No application-type components found in SBOM."
+
+        lines: list[str] = []
+        for app in apps:
+            name = app.get("name", "?")
+            version = app.get("version", "N/A")
+            lines.append(f"{name}@{version}")
+
+            bom_ref = app.get("bom-ref", "")
+            depends_on = dep_map.get(bom_ref, [])
+            if not depends_on:
+                lines.append("  (no dependencies)")
+            else:
+                for i, dep_ref in enumerate(depends_on):
+                    prefix = "  └─" if i == len(depends_on) - 1 else "  ├─"
+                    dep = ref_to_comp.get(dep_ref)
+                    if dep:
+                        dep_name = dep.get("name", dep_ref)
+                        dep_ver = dep.get("version", "N/A")
+                        dep_type = dep.get("type", "?")
+                        lines.append(f"{prefix} {dep_name}@{dep_ver}  [{dep_type}]")
+                    else:
+                        lines.append(f"{prefix} {dep_ref}  [unknown]")
+            lines.append("")
+
+        return "\n".join(lines).rstrip()
+
+    return [generate_sbom, list_application_components, get_application_dependencies]

@@ -38,6 +38,7 @@ using the cdxgen tool (https://cyclonedx.github.io/cdxgen).
 You have access to the following tools:
 - generate_sbom: Run cdxgen against the project and write the SBOM to a JSON file.
 - list_application_components: Extract top-level executable components (type=application) from the SBOM.
+- get_application_dependencies: Show direct dependencies for each application component.
 
 Guidelines:
 - Do NOT call generate_sbom unless the user explicitly requests SBOM generation, or a tool returns an error stating the SBOM file does not exist.
