@@ -73,23 +73,16 @@ def use_tool(
     tool_name: Annotated[str, "Tool name to install and activate, e.g. 'node', 'python'"],
     version: Annotated[str, "Version to use, e.g. '20', '3.11', 'latest'"] = "latest",
     project_dir: Annotated[str, "Project directory to configure (writes to mise.toml)"] = ".",
-    global_: Annotated[bool, "If True, configure globally (~/.config/mise/config.toml) instead of per-project"] = False,
 ) -> str:
-    """Install a tool at the specified version and add it to the project or global mise config.
+    """Install a tool at the specified version and add it to the project mise config.
 
-    Runs ``mise use [--global] <tool>@<version>``, which installs the tool if
-    needed and writes the version pin to mise.toml (or the global config).
+    Runs ``mise use --path <project_dir> <tool>@<version>``, which installs the
+    tool if needed and writes the version pin to mise.toml in the given directory.
     """
-    logger.debug("use_tool: tool={!r} version={!r} dir={!r} global={}", tool_name, version, project_dir, global_)
+    logger.debug("use_tool: tool={!r} version={!r} dir={!r}", tool_name, version, project_dir)
     tool_spec = f"{tool_name}@{version}"
-    args = ["use"]
-    if global_:
-        args.append("--global")
-    args.append(tool_spec)
-    cwd = None if global_ else project_dir
-    output = run_command("mise", *args, cwd=cwd)
-    scope = "globally" if global_ else f"in '{project_dir}'"
-    return f"Configured {tool_spec} {scope}.\n{output}".strip()
+    output = run_command("mise", "use", "--path", ".", tool_spec, cwd=project_dir)
+    return f"Configured {tool_spec} in '{project_dir}'.\n{output}".strip()
 
 
 def create_mise_tools(project_path: str) -> list:
@@ -150,23 +143,16 @@ def create_mise_tools(project_path: str) -> list:
     def _use_tool(
         tool_name: Annotated[str, "Tool name to install and activate, e.g. 'node', 'python'"],
         version: Annotated[str, "Version to use, e.g. '20', '3.11', 'latest'"] = "latest",
-        global_: Annotated[bool, "If True, configure globally (~/.config/mise/config.toml) instead of per-project"] = False,
     ) -> str:
-        """Install a tool at the specified version and add it to the project or global mise config.
+        """Install a tool at the specified version and add it to the project mise config.
 
-        Runs ``mise use [--global] <tool>@<version>`` in the project directory,
-        installing the tool if needed and writing the version pin to mise.toml
-        (or the global config when global_=True).
+        Runs ``mise use --path <project_path> <tool>@<version>`` in the project
+        directory, installing the tool if needed and writing the version pin to
+        mise.toml.
         """
-        cwd = None if global_ else project_path
-        logger.debug("use_tool: tool={!r} version={!r} cwd={!r} global={}", tool_name, version, cwd, global_)
+        logger.debug("use_tool: tool={!r} version={!r} path={!r}", tool_name, version, project_path)
         tool_spec = f"{tool_name}@{version}"
-        args = ["use"]
-        if global_:
-            args.append("--global")
-        args.append(tool_spec)
-        output = run_command("mise", *args, cwd=cwd)
-        scope = "globally" if global_ else f"in '{project_path}'"
-        return f"Configured {tool_spec} {scope}.\n{output}".strip()
+        output = run_command("mise", "use", "--path", ".", tool_spec, cwd=project_path)
+        return f"Configured {tool_spec} in '{project_path}'.\n{output}".strip()
 
     return [_search_tool, _list_remote_versions, _trust_config, _use_tool]
