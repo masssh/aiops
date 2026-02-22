@@ -153,7 +153,7 @@ class MainAgent(BaseAgent):
         def github_worker(state: dict[str, Any]) -> dict[str, Any]:
             """Run a GitHubAgent for a single task and return the result."""
             # Import here to avoid circular imports at module load time
-            from src.agents.github import GitHubAgent
+            from src.agents.github.agent import GitHubAgent
 
             task: str = state["task"]
             logger.info("GitHub worker → {!r}", task[:200])

@@ -6,7 +6,7 @@ tool versions in projects.
 
 Example::
 
-    from src.agents.mise import MiseAgent
+    from src.agents.mise.agent import MiseAgent
 
     agent = MiseAgent()
     response = agent.run("Search for available Node.js versions and use 20 in this project")

@@ -5,7 +5,7 @@ cloning repositories and checking out branches.
 
 Example::
 
-    from src.agents.github import GitHubAgent
+    from src.agents.github.agent import GitHubAgent
 
     agent = GitHubAgent()
     response = agent.run("Clone https://github.com/octocat/Hello-World into /tmp/hello")

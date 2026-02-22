@@ -18,7 +18,9 @@ run = ".venv/bin/python -m src.agents.github.agent $@"
 
 [tasks."github:test"]
 description = "GitHub agent — test: clone octocat/Hello-World"
-run = ".venv/bin/python -m src.agents.github.agent --query \"Clone https://github.com/octocat/Hello-World into ./workspace/repos\""
+run = '''
+.venv/bin/python -m src.agents.github.agent --query "Clone https://github.com/octocat/Hello-World into ./workspace/repos"
+'''
 
 # ---------------------------------------------------------------------------
 # mise agent
@@ -30,7 +32,9 @@ run = ".venv/bin/python -m src.agents.mise.agent $@"
 
 [tasks."mise:test"]
 description = "mise agent — test: search for node and use version 20"
-run = ".venv/bin/python -m src.agents.mise.agent --query \"Search for node, list available versions, then use version 20\""
+run = '''
+.venv/bin/python -m src.agents.mise.agent --query "Search for node, list available versions, then use version 20"
+'''
 
 # ---------------------------------------------------------------------------
 # main (orchestrator) agent
@@ -42,4 +46,6 @@ run = ".venv/bin/python -m src.agents.main.agent $@"
 
 [tasks."main:test"]
 description = "Main orchestrator agent — test: clone octocat/Hello-World and octocat/Spoon-Knife in parallel"
-run = ".venv/bin/python -m src.agents.main.agent --query \"Clone https://github.com/octocat/Hello-World and https://github.com/octocat/Spoon-Knife\""
+run = '''
+.venv/bin/python -m src.agents.main.agent --query "Clone https://github.com/octocat/Hello-World and https://github.com/octocat/Spoon-Knife"
+'''
