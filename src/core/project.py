@@ -17,6 +17,7 @@ _CONFIG_PATH: Path = _PROJECT_ROOT / "project.yaml"
 class ProjectConfig(BaseModel):
     model_config = {"extra": "forbid"}
     workspace: Path
+    agent_output: Path = _PROJECT_ROOT / "agent_output"
 
     @field_validator("workspace", mode="before")
     @classmethod
@@ -25,6 +26,27 @@ class ProjectConfig(BaseModel):
         if not p.is_absolute():
             p = _PROJECT_ROOT / p
         return p.resolve()
+
+    @field_validator("agent_output", mode="before")
+    @classmethod
+    def _resolve_agent_output(cls, v: Any) -> Path:
+        p = Path(str(v))
+        if not p.is_absolute():
+            p = _PROJECT_ROOT / p
+        return p.resolve()
+
+    def repo_output_dir(self, repo_name: str) -> Path:
+        """Return agent_output/repos/{repo_name}/ and create it."""
+        d = self.agent_output / "repos" / repo_name
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def component_dir(self, repo_name: str, component_name: str) -> Path:
+        """Return agent_output/repos/{repo_name}/components/{slug}/ and create it."""
+        safe = re.sub(r"[:/\\ ]", "_", component_name)
+        d = self.repo_output_dir(repo_name) / "components" / safe
+        d.mkdir(parents=True, exist_ok=True)
+        return d
 
 
 _config: ProjectConfig | None = None

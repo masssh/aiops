@@ -49,7 +49,7 @@ run = ".venv/bin/python -m src.agents.sbom.agent $@"
 
 [tasks."sbom:test"]
 description = "SBOM agent — test: generate and analyse SBOM for a cloned repo"
-env.QUERY = "Generate the SBOM and list the first 20 components"
+env.QUERY = "Generate the SBOM and get application dependencies"
 run = '''
 .venv/bin/python -m src.agents.sbom.agent \
   --query "$QUERY" \

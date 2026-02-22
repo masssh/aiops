@@ -14,6 +14,7 @@ Example::
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from langchain_core.messages import SystemMessage
@@ -66,11 +67,12 @@ class SBOMAgent(BaseAgent):
     ) -> None:
         super().__init__(verbose=verbose, session_id=session_id)
         self.project_path = project_path
+        self.repo_name: str = Path(project_path).name
 
     def _build_graph(self) -> "CompiledStateGraph":
         """Build a LangGraph ReAct agent with SBOM tools."""
         llm = create_llm(verbose=self.verbose)
-        sbom_tools = create_sbom_tools(self.project_path)
+        sbom_tools = create_sbom_tools(self.project_path, self.repo_name)
         llm_with_tools = llm.bind_tools(sbom_tools)
 
         tool_node = ToolNode(sbom_tools)

@@ -44,7 +44,7 @@ jupyter_config.py
 
 # Project specific
 workspace/
-analysis_results/
+agent_output/
 logs/
 /Users/masssh/.gemini/tmp/
 

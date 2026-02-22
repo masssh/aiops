@@ -17,11 +17,12 @@ from langchain_core.tools import tool
 
 from src.core.logging import get_logger
 from src.core.process import run_command
+from src.core.project import get_project_config
 
 logger = get_logger(__name__)
 
 
-def create_sbom_tools(project_path: str) -> list:
+def create_sbom_tools(project_path: str, repo_name: str) -> list:
     """Create SBOM tools pinned to *project_path*.
 
     Tools operate within the configured project directory so the LLM cannot
@@ -29,35 +30,40 @@ def create_sbom_tools(project_path: str) -> list:
 
     Args:
         project_path: Absolute or relative path to the project directory.
+        repo_name: Repository name used to derive the agent_output sub-directory.
 
     Returns:
         List of LangChain tools ready to be bound to an agent.
     """
     _project_path = str(Path(project_path).resolve())
-    _default_sbom = str(Path(_project_path) / "sbom.json")
+    cfg = get_project_config()
+    _repo_out = cfg.repo_output_dir(repo_name)
+    _default_sbom = str(_repo_out / "sbom.json")
 
     @tool
     def generate_sbom(
         output_path: Annotated[
             str,
-            "Output path for the SBOM file. Defaults to sbom.cdx.json inside the project directory.",
+            "Output path for the SBOM file. Leave empty to use the default path under agent_output/.",
         ] = "",
     ) -> str:
         """Generate a CycloneDX SBOM for the project using ``cdxgen``.
 
         Runs ``cdxgen -o <output_path> <project_path>`` and writes the SBOM as
         JSON.  The SBOM captures all detected dependencies and their metadata.
+        Do NOT pass an explicit output_path unless instructed — the default
+        writes to agent_output/repos/{repo}/sbom.json.
         """
         out = output_path or _default_sbom
         logger.debug("generate_sbom: project={!r} output={!r}", _project_path, out)
-        run_command("cdxgen", "-o", out, _project_path)
+        run_command("cdxgen", "--json-pretty", "-o", out, _project_path)
         return f"SBOM generated at '{out}'."
 
     @tool
     def list_application_components(
         sbom_path: Annotated[
             str,
-            "Path to the SBOM JSON file. Defaults to sbom.json inside the project directory.",
+            "Path to the SBOM JSON file. Leave empty to use the default path under agent_output/.",
         ] = "",
     ) -> str:
         """List top-level executable components (type=application) from the SBOM.
@@ -98,7 +104,7 @@ def create_sbom_tools(project_path: str) -> list:
     def get_application_dependencies(
         sbom_path: Annotated[
             str,
-            "Path to the SBOM JSON file. Defaults to sbom.json inside the project directory.",
+            "Path to the SBOM JSON file. Leave empty to use the default path under agent_output/.",
         ] = "",
     ) -> str:
         """Show direct dependencies for each application component in the SBOM.
@@ -147,6 +153,14 @@ def create_sbom_tools(project_path: str) -> list:
 
             bom_ref = app.get("bom-ref", "")
             depends_on = dep_map.get(bom_ref, [])
+
+            dep_components = [ref_to_comp.get(r, {"bom-ref": r}) for r in depends_on]
+            dep_data = {"component": app, "dependencies": dep_components}
+            comp_dir = cfg.component_dir(repo_name, name)
+            (comp_dir / "dependencies.json").write_text(
+                json.dumps(dep_data, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+
             if not depends_on:
                 lines.append("  (no dependencies)")
             else:

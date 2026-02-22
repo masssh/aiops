@@ -1,3 +1,5 @@
 # project.yaml — aiops プロジェクト設定
-# workspace: git clone のデフォルト先ディレクトリ（相対パスはプロジェクトルート基準）
+# workspace:     git clone のデフォルト先ディレクトリ（相対パスはプロジェクトルート基準）
+# agent_output:  エージェント解析結果の出力先ディレクトリ（省略時: agent_output/）
 workspace: workspace/repos
+agent_output: agent_output
