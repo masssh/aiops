@@ -1,37 +1,45 @@
 [tools]
 python = "3.11"
 
-[tasks.run]
-description = "Run aiops with the GitHub agent (interactive)"
-run = ".venv/bin/python main.py --agent github"
-
-[tasks.query]
-description = "Run a one-shot query: mise run query -- 'List open issues in octocat/Hello-World'"
-run = ".venv/bin/python main.py --agent github --query \"$@\""
-
-[tasks.debug]
-description = "Run aiops with DEBUG logging enabled"
-run = ".venv/bin/python main.py --agent github --debug-agent github"
-
-[tasks.clone-hello-world]
-description = "Clone octocat/Hello-World using the github agent"
-run = ".venv/bin/python main.py --agent github --query \"Clone https://github.com/octocat/Hello-World\""
-
-[tasks.clone-samples]
-description = "Clone octocat/Hello-World and octocat/Spoon-Knife via the main agent"
-run = ".venv/bin/python main.py --agent main --query \"Clone https://github.com/octocat/Hello-World and https://github.com/octocat/Spoon-Knife\""
-
-[tasks.mise-setup]
-description = "Search, list versions, and configure a tool via mise: mise run mise-setup -- 'node 20'"
-run = ".venv/bin/python main.py --agent mise --query \"Search for $1, list the available remote versions, then use version $2 in this project\""
-
-[tasks.mise-setup-repo]
-description = "Configure a tool in a specific repository: mise run mise-setup-repo -- /path/to/repo node 20"
-run = ".venv/bin/python -m src.agents.mise.agent --repository-path \"$1\" --query \"Search for $2, list the available remote versions, then use version $3 in this project\""
-
 [tasks.install]
 description = "Install dependencies into .venv"
 run = """
 [ -d .venv ] || python -m venv .venv
 .venv/bin/pip install -e ".[dev]"
 """
+
+# ---------------------------------------------------------------------------
+# github agent
+# ---------------------------------------------------------------------------
+
+[tasks.github]
+description = "GitHub agent — interactive: mise run github [-- --debug]"
+run = ".venv/bin/python -m src.agents.github.agent $@"
+
+[tasks."github:test"]
+description = "GitHub agent — test: clone octocat/Hello-World"
+run = ".venv/bin/python -m src.agents.github.agent --query \"Clone https://github.com/octocat/Hello-World into ./workspace/repos/Hello-World\""
+
+# ---------------------------------------------------------------------------
+# mise agent
+# ---------------------------------------------------------------------------
+
+[tasks.mise]
+description = "mise agent — interactive: mise run mise [-- --repository-path /path]"
+run = ".venv/bin/python -m src.agents.mise.agent $@"
+
+[tasks."mise:test"]
+description = "mise agent — test: search for node and use version 20"
+run = ".venv/bin/python -m src.agents.mise.agent --query \"Search for node, list available versions, then use version 20\""
+
+# ---------------------------------------------------------------------------
+# main (orchestrator) agent
+# ---------------------------------------------------------------------------
+
+[tasks.main]
+description = "Main orchestrator agent — interactive: mise run main [-- --debug]"
+run = ".venv/bin/python -m src.agents.main.agent $@"
+
+[tasks."main:test"]
+description = "Main orchestrator agent — test: clone octocat/Hello-World and octocat/Spoon-Knife in parallel"
+run = ".venv/bin/python -m src.agents.main.agent --query \"Clone https://github.com/octocat/Hello-World and https://github.com/octocat/Spoon-Knife\""
