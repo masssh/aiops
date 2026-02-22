@@ -87,7 +87,7 @@ class BaseAgent(abc.ABC):
 
     def _build_config(self, **kwargs: Any) -> dict[str, Any]:
         """Assemble the ``config`` dict passed to ``graph.invoke``."""
-        callbacks: list[Any] = [ToolLoggingCallbackHandler()]
+        callbacks: list[Any] = [ToolLoggingCallbackHandler(agent_name=self.name)]
         if monitoring.is_enabled():
             callbacks.append(monitoring.get_callback_handler())
         config: dict[str, Any] = {"callbacks": callbacks, **kwargs}

@@ -14,6 +14,7 @@ import json
 import logging
 import sys
 from typing import TYPE_CHECKING, Any
+from uuid import UUID
 
 from langchain_core.callbacks import BaseCallbackHandler
 from loguru import logger
@@ -134,6 +135,10 @@ def get_logger(name: str) -> "logger.__class__":  # type: ignore[valid-type]
 class ToolLoggingCallbackHandler(BaseCallbackHandler):
     """LangChain callback that logs every tool invocation at INFO level."""
 
+    def __init__(self, agent_name: str = "unknown") -> None:
+        super().__init__()
+        self._agent_name = agent_name
+
     def on_tool_start(
         self,
         serialized: dict[str, Any],
@@ -145,7 +150,25 @@ class ToolLoggingCallbackHandler(BaseCallbackHandler):
             args: Any = json.loads(input_str)
         except (json.JSONDecodeError, TypeError):
             args = input_str
-        get_logger("tools").info("Tool call: {} args={}", tool_name, args)
+        get_logger("tools").info("[{}] Tool call: {} args={}", self._agent_name, tool_name, args)
+
+    def on_tool_end(
+        self,
+        output: Any,
+        *,
+        run_id: UUID,
+        **kwargs: Any,
+    ) -> None:
+        get_logger("tools").info("[{}] Tool result: {}", self._agent_name, output)
+
+    def on_tool_error(
+        self,
+        error: BaseException,
+        *,
+        run_id: UUID,
+        **kwargs: Any,
+    ) -> None:
+        get_logger("tools").error("[{}] Tool error: {}", self._agent_name, error)
 
 
 def enable_debug_for_agent(agent_name: str) -> None:
