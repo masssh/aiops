@@ -103,6 +103,7 @@ def run_agent_cli(
     if build_kwargs is not None:
         kwargs.update(build_kwargs(args))
 
+    logger.info("Starting {} with kwargs: {}", agent_class.__name__, kwargs)
     agent = agent_class(**kwargs)
 
     if args.query:
