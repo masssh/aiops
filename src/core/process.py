@@ -9,6 +9,7 @@ Provides ``run_command`` — a thin wrapper around ``subprocess.run`` that:
 
 from __future__ import annotations
 
+import inspect
 import shutil
 import subprocess
 from contextvars import ContextVar, Token
@@ -57,13 +58,14 @@ def run_command(binary: str, *args: str, cwd: str | None = None) -> str:
             f"'{binary}' command not found. Please ensure it is installed and on PATH."
         )
     agent = _current_agent.get()
+    caller = inspect.stack()[1].function
     cmd = [path, *args]
-    logger.info("[{}] $ {} (cwd={})", agent, " ".join(cmd), cwd or ".")
+    logger.info("[{}][{}] $ {} (cwd={})", agent, caller, " ".join(cmd), cwd or ".")
     result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
     if result.stdout:
-        logger.info("[{}] stdout: {}", agent, result.stdout.rstrip())
+        logger.debug("[{}][{}] stdout: {}", agent, caller, result.stdout.rstrip())
     if result.stderr:
-        logger.info("[{}] stderr: {}", agent, result.stderr.rstrip())
+        logger.debug("[{}][{}] stderr: {}", agent, caller, result.stderr.rstrip())
     if result.returncode != 0:
         raise RuntimeError(
             f"Command failed (exit {result.returncode}): {result.stderr.strip()}"
