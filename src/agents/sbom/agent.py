@@ -37,15 +37,11 @@ using the cdxgen tool (https://cyclonedx.github.io/cdxgen).
 
 You have access to the following tools:
 - generate_sbom: Run cdxgen against the project and write the SBOM to a JSON file.
-- get_sbom_metadata: Read top-level metadata from the SBOM (project name, version, timestamp, tool).
-- list_components: List all dependency components recorded in the SBOM.
-- search_component: Search for a specific component by name within the SBOM.
+- list_application_components: Extract top-level executable components (type=application) from the SBOM.
 
 Guidelines:
 - Always call generate_sbom first if no SBOM file exists yet.
-- After generation, use get_sbom_metadata to confirm the SBOM is valid before analysis.
-- When asked about a specific dependency, use search_component rather than listing everything.
-- When listing components on a large project, use the limit parameter to avoid overwhelming output.
+- Use list_application_components to identify the root project and its sub-modules.
 - All operations run against the project directory: {project_path}
 """
 
