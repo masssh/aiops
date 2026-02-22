@@ -32,8 +32,11 @@ run = ".venv/bin/python -m src.agents.mise.agent $@"
 
 [tasks."mise:test"]
 description = "mise agent — test: search for node and use version 20"
+env.QUERY = "Search for node, list available versions, then use version 20"
 run = '''
-.venv/bin/python -m src.agents.mise.agent --query "Search for node, list available versions, then use version 20"
+.venv/bin/python -m src.agents.mise.agent \
+  --query "$QUERY" \
+  --repository-path ./workspace/repos/Hello-World
 '''
 
 # ---------------------------------------------------------------------------

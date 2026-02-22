@@ -10,6 +10,7 @@ Usage:
 
 from __future__ import annotations
 
+import logging
 import sys
 from typing import TYPE_CHECKING
 
@@ -17,6 +18,23 @@ from loguru import logger
 
 if TYPE_CHECKING:
     pass
+
+
+class _InterceptHandler(logging.Handler):
+    """Redirect stdlib ``logging`` records to Loguru without truncation."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            level: str | int = logger.level(record.levelname).name
+        except ValueError:
+            level = record.levelno
+
+        frame, depth = sys._getframe(6), 6
+        while frame and frame.f_code.co_filename == logging.__file__:
+            frame = frame.f_back  # type: ignore[assignment]
+            depth += 1
+
+        logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
 
 
 # ---------------------------------------------------------------------------
@@ -92,6 +110,10 @@ def setup_logging(
             backtrace=True,
             diagnose=False,          # avoid leaking secrets to log files
         )
+
+    # Redirect stdlib logging (used by LangChain/LangGraph etc.) to Loguru
+    # so all messages pass through a single pipeline without truncation.
+    logging.basicConfig(handlers=[_InterceptHandler()], level=0, force=True)
 
     _initialized = True
     logger.debug("Logging initialised (level={}, file={})", effective_level, effective_file or "disabled")
