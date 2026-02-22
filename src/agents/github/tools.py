@@ -9,57 +9,15 @@ Git operations are delegated to the ``git`` CLI, which must be installed.
 from __future__ import annotations
 
 import os
-import shutil
-import subprocess
 from typing import Annotated
 
 from langchain_core.tools import tool
 
 from src.core.logging import get_logger
+from src.core.process import run_command
 from src.core.project import get_project_config, repo_name_from_url
 
 logger = get_logger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
-
-def _require_git() -> str:
-    """Return the absolute path to the ``git`` binary, or raise."""
-    path = shutil.which("git")
-    if not path:
-        raise RuntimeError("'git' command not found. Please install Git.")
-    return path
-
-
-def _run_git(*args: str, cwd: str | None = None) -> str:
-    """Run ``git <args>`` and return stdout as a string.
-
-    Args:
-        *args:  Arguments forwarded to ``git``.
-        cwd:    Working directory for the command.
-
-    Returns:
-        Decoded stdout string.
-
-    Raises:
-        RuntimeError: If the command exits with a non-zero status.
-    """
-    git = _require_git()
-    cmd = [git, *args]
-    logger.debug("git {} (cwd={})", " ".join(args), cwd)
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        cwd=cwd,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"git command failed (exit {result.returncode}): {result.stderr.strip()}"
-        )
-    return result.stdout
 
 
 # ---------------------------------------------------------------------------
@@ -104,7 +62,7 @@ def clone_repository(
             f"Target path '{target}' already exists but is not a Git repository."
         )
 
-    output = _run_git("clone", url, target)
+    output = run_command("git", "clone", url, target)
     return f"Cloned {url} into '{target}'.\n{output}".strip()
 
 
@@ -115,7 +73,7 @@ def checkout_branch(
 ) -> str:
     """Checkout a branch in a local Git repository."""
     logger.debug("checkout_branch: repo_path={} branch={}", repo_path, branch)
-    output = _run_git("checkout", branch, cwd=repo_path)
+    output = run_command("git", "checkout", branch, cwd=repo_path)
     return f"Checked out branch '{branch}' in '{repo_path}'.\n{output}".strip()
 
 

@@ -15,6 +15,7 @@ from langchain_core.messages import HumanMessage
 
 from src.core import monitoring
 from src.core.logging import ToolLoggingCallbackHandler, get_logger
+from src.core.process import _current_agent, set_current_agent
 
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
@@ -68,7 +69,11 @@ class BaseAgent(abc.ABC):
 
         graph = self._get_graph()
         config = self._build_config(**kwargs)
-        result = graph.invoke({"messages": [HumanMessage(content=message)]}, config=config)
+        token = set_current_agent(self.name)
+        try:
+            result = graph.invoke({"messages": [HumanMessage(content=message)]}, config=config)
+        finally:
+            _current_agent.reset(token)
 
         final_message = result["messages"][-1]
         response: str = (

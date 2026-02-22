@@ -9,60 +9,14 @@ See https://mise.jdx.dev for installation instructions.
 
 from __future__ import annotations
 
-import shutil
-import subprocess
 from typing import Annotated
 
 from langchain_core.tools import tool
 
 from src.core.logging import get_logger
+from src.core.process import run_command
 
 logger = get_logger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
-
-def _require_mise() -> str:
-    """Return the absolute path to the ``mise`` binary, or raise."""
-    path = shutil.which("mise")
-    if not path:
-        raise RuntimeError(
-            "'mise' command not found. "
-            "Install mise from https://mise.jdx.dev or run: "
-            "curl https://mise.run | sh"
-        )
-    return path
-
-
-def _run_mise(*args: str, cwd: str | None = None) -> str:
-    """Run ``mise <args>`` and return stdout as a string.
-
-    Args:
-        *args:  Arguments forwarded to ``mise``.
-        cwd:    Working directory for the command.
-
-    Returns:
-        Decoded stdout string.
-
-    Raises:
-        RuntimeError: If the command exits with a non-zero status.
-    """
-    mise = _require_mise()
-    cmd = [mise, *args]
-    logger.debug("mise {} (cwd={})", " ".join(args), cwd)
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        cwd=cwd,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"mise command failed (exit {result.returncode}): {result.stderr.strip()}"
-        )
-    return result.stdout
 
 
 # ---------------------------------------------------------------------------
@@ -78,7 +32,7 @@ def search_tool(
     Returns a list of matching tool names that can be installed via mise.
     """
     logger.debug("search_tool: query={!r}", query)
-    output = _run_mise("search", query)
+    output = run_command("mise", "search", query)
     return output.strip() if output.strip() else f"No tools found matching '{query}'."
 
 
@@ -96,7 +50,7 @@ def list_remote_versions(
     args = ["ls-remote", tool_name]
     if filter_prefix:
         args.append(filter_prefix)
-    output = _run_mise(*args)
+    output = run_command("mise", *args)
     return output.strip() if output.strip() else f"No remote versions found for '{tool_name}'."
 
 
@@ -110,7 +64,7 @@ def trust_config(
     from a project's mise.toml. Run this once per project to avoid permission errors.
     """
     logger.debug("trust_config: project_dir={!r}", project_dir)
-    output = _run_mise("trust", cwd=project_dir)
+    output = run_command("mise", "trust", cwd=project_dir)
     return output.strip() if output.strip() else f"Trusted mise config in '{project_dir}'."
 
 
@@ -133,7 +87,7 @@ def use_tool(
         args.append("--global")
     args.append(tool_spec)
     cwd = None if global_ else project_dir
-    output = _run_mise(*args, cwd=cwd)
+    output = run_command("mise", *args, cwd=cwd)
     scope = "globally" if global_ else f"in '{project_dir}'"
     return f"Configured {tool_spec} {scope}.\n{output}".strip()
 
@@ -160,7 +114,7 @@ def create_mise_tools(project_path: str) -> list:
         Returns a list of matching tool names that can be installed via mise.
         """
         logger.debug("search_tool: query={!r}", query)
-        output = _run_mise("search", query)
+        output = run_command("mise", "search", query)
         return output.strip() if output.strip() else f"No tools found matching '{query}'."
 
     @tool
@@ -177,7 +131,7 @@ def create_mise_tools(project_path: str) -> list:
         args = ["ls-remote", tool_name]
         if filter_prefix:
             args.append(filter_prefix)
-        output = _run_mise(*args)
+        output = run_command("mise", *args)
         return output.strip() if output.strip() else f"No remote versions found for '{tool_name}'."
 
     @tool
@@ -189,7 +143,7 @@ def create_mise_tools(project_path: str) -> list:
         versions from a project's mise.toml.
         """
         logger.debug("trust_config: cwd={!r}", project_path)
-        output = _run_mise("trust", cwd=project_path)
+        output = run_command("mise", "trust", cwd=project_path)
         return output.strip() if output.strip() else f"Trusted mise config in '{project_path}'."
 
     @tool
@@ -211,7 +165,7 @@ def create_mise_tools(project_path: str) -> list:
         if global_:
             args.append("--global")
         args.append(tool_spec)
-        output = _run_mise(*args, cwd=cwd)
+        output = run_command("mise", *args, cwd=cwd)
         scope = "globally" if global_ else f"in '{project_path}'"
         return f"Configured {tool_spec} {scope}.\n{output}".strip()
 
