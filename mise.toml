@@ -1,5 +1,4 @@
 [tools]
-node = "20"
 python = "3.11"
 
 [tasks.install]
@@ -28,7 +27,7 @@ run = '''
 # ---------------------------------------------------------------------------
 
 [tasks.mise]
-description = "mise agent — interactive: mise run mise [-- --repository-path /path]"
+description = "mise agent — interactive: mise run mise [-- --project-path /path]"
 run = ".venv/bin/python -m src.agents.mise.agent $@"
 
 [tasks."mise:test"]
@@ -37,7 +36,7 @@ env.QUERY = "Search for node, list available versions, then use version 20"
 run = '''
 .venv/bin/python -m src.agents.mise.agent \
   --query "$QUERY" \
-  --repository-path ./workspace/repos/Hello-World
+  --project-path ./workspace/repos/Hello-World
 '''
 
 # ---------------------------------------------------------------------------
