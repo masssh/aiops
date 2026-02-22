@@ -69,6 +69,8 @@ def create_sbom_tools(project_path: str) -> list:
         """
         path = sbom_path or _default_sbom
         logger.debug("list_application_components: path={!r}", path)
+        if not Path(path).exists():
+            return f"SBOM file not found at '{path}'. Run generate_sbom first."
         data = json.loads(Path(path).read_text(encoding="utf-8"))
 
         root = data.get("metadata", {}).get("component", {})

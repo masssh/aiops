@@ -40,7 +40,7 @@ You have access to the following tools:
 - list_application_components: Extract top-level executable components (type=application) from the SBOM.
 
 Guidelines:
-- Always call generate_sbom first if no SBOM file exists yet.
+- Do NOT call generate_sbom unless the user explicitly requests SBOM generation, or a tool returns an error stating the SBOM file does not exist.
 - Use list_application_components to identify the root project and its sub-modules.
 - All operations run against the project directory: {project_path}
 """
