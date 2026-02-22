@@ -40,6 +40,23 @@ run = '''
 '''
 
 # ---------------------------------------------------------------------------
+# sbom agent
+# ---------------------------------------------------------------------------
+
+[tasks.sbom]
+description = "SBOM agent — interactive: mise run sbom [-- --project-path /path]"
+run = ".venv/bin/python -m src.agents.sbom.agent $@"
+
+[tasks."sbom:test"]
+description = "SBOM agent — test: generate and analyse SBOM for a cloned repo"
+env.QUERY = "Generate the SBOM and list the first 20 components"
+run = '''
+.venv/bin/python -m src.agents.sbom.agent \
+  --query "$QUERY" \
+  --project-path ./workspace/repos/Building-Spring-Boot-Web-Applications-Kotlin
+'''
+
+# ---------------------------------------------------------------------------
 # main (orchestrator) agent
 # ---------------------------------------------------------------------------
 
