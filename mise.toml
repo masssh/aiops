@@ -25,6 +25,10 @@ run = ".venv/bin/python main.py --agent main --query \"Clone https://github.com/
 description = "Search, list versions, and configure a tool via mise: mise run mise-setup -- 'node 20'"
 run = ".venv/bin/python main.py --agent mise --query \"Search for $1, list the available remote versions, then use version $2 in this project\""
 
+[tasks.mise-setup-repo]
+description = "Configure a tool in a specific repository: mise run mise-setup-repo -- /path/to/repo node 20"
+run = ".venv/bin/python -m src.agents.mise.agent --repository-path \"$1\" --query \"Search for $2, list the available remote versions, then use version $3 in this project\""
+
 [tasks.install]
 description = "Install dependencies into .venv"
 run = """

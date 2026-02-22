@@ -102,7 +102,7 @@ def list_remote_versions(
 
 @tool
 def trust_config(
-    project_dir: Annotated[str, "Path to the project directory whose mise.toml should be trusted"],
+    project_dir: Annotated[str, "Path to the project directory whose mise.toml should be trusted. Use '.' for the default repository path"] = ".",
 ) -> str:
     """Trust the mise configuration file in the given directory using ``mise trust``.
 
@@ -118,7 +118,7 @@ def trust_config(
 def use_tool(
     tool_name: Annotated[str, "Tool name to install and activate, e.g. 'node', 'python'"],
     version: Annotated[str, "Version to use, e.g. '20', '3.11', 'latest'"] = "latest",
-    project_dir: Annotated[str, "Project directory to configure (writes to mise.toml). Use '.' for current directory"] = ".",
+    project_dir: Annotated[str, "Project directory to configure (writes to mise.toml). Use '.' for the default repository path"] = ".",
     global_: Annotated[bool, "If True, configure globally (~/.config/mise/config.toml) instead of per-project"] = False,
 ) -> str:
     """Install a tool at the specified version and add it to the project or global mise config.
@@ -138,10 +138,96 @@ def use_tool(
     return f"Configured {tool_spec} {scope}.\n{output}".strip()
 
 
-# Exported list for easy import in agent.py
-MISE_TOOLS = [
-    search_tool,
-    list_remote_versions,
-    trust_config,
-    use_tool,
-]
+def create_mise_tools(repository_path: str | None = None) -> list:
+    """Create mise tools, optionally pre-configured with a default repository path.
+
+    When *repository_path* is provided it is used as the working directory for
+    ``trust_config`` and ``use_tool`` whenever the caller leaves ``project_dir``
+    at its default value (``"."``).  An explicit ``project_dir`` always takes
+    precedence.
+
+    Args:
+        repository_path: Absolute path to the local repository to operate in.
+
+    Returns:
+        List of LangChain tools ready to be bound to an agent.
+    """
+
+    def _resolve_cwd(project_dir: str) -> str:
+        """Return the effective cwd, substituting *repository_path* for ``"."``."""
+        if project_dir == "." and repository_path:
+            return repository_path
+        return project_dir
+
+    @tool
+    def _search_tool(
+        query: Annotated[str, "Tool name or keyword to search for, e.g. 'node', 'python', 'terraform'"],
+    ) -> str:
+        """Search for available tools in the mise registry using ``mise search``.
+
+        Returns a list of matching tool names that can be installed via mise.
+        """
+        logger.debug("search_tool: query={!r}", query)
+        output = _run_mise("search", query)
+        return output.strip() if output.strip() else f"No tools found matching '{query}'."
+
+    @tool
+    def _list_remote_versions(
+        tool_name: Annotated[str, "Tool name to list remote versions for, e.g. 'node', 'python'"],
+        filter_prefix: Annotated[str, "Optional version prefix to filter results, e.g. '20', '3.11'"] = "",
+    ) -> str:
+        """List available remote versions for a tool using ``mise ls-remote``.
+
+        Returns the available versions that can be installed. Optionally filter
+        by a version prefix (e.g. '20' to show only Node.js 20.x releases).
+        """
+        logger.debug("list_remote_versions: tool={!r} filter={!r}", tool_name, filter_prefix)
+        args = ["ls-remote", tool_name]
+        if filter_prefix:
+            args.append(filter_prefix)
+        output = _run_mise(*args)
+        return output.strip() if output.strip() else f"No remote versions found for '{tool_name}'."
+
+    @tool
+    def _trust_config(
+        project_dir: Annotated[str, "Path to the project directory whose mise.toml should be trusted. Use '.' for the default repository path"] = ".",
+    ) -> str:
+        """Trust the mise configuration file in the given directory using ``mise trust``.
+
+        mise requires explicit trust before executing tasks or applying tool versions
+        from a project's mise.toml. Run this once per project to avoid permission errors.
+        """
+        cwd = _resolve_cwd(project_dir)
+        logger.debug("trust_config: project_dir={!r} -> cwd={!r}", project_dir, cwd)
+        output = _run_mise("trust", cwd=cwd)
+        return output.strip() if output.strip() else f"Trusted mise config in '{cwd}'."
+
+    @tool
+    def _use_tool(
+        tool_name: Annotated[str, "Tool name to install and activate, e.g. 'node', 'python'"],
+        version: Annotated[str, "Version to use, e.g. '20', '3.11', 'latest'"] = "latest",
+        project_dir: Annotated[str, "Project directory to configure (writes to mise.toml). Use '.' for the default repository path"] = ".",
+        global_: Annotated[bool, "If True, configure globally (~/.config/mise/config.toml) instead of per-project"] = False,
+    ) -> str:
+        """Install a tool at the specified version and add it to the project or global mise config.
+
+        Runs ``mise use [--global] <tool>@<version>``, which installs the tool if
+        needed and writes the version pin to mise.toml (or the global config).
+        """
+        cwd = _resolve_cwd(project_dir)
+        logger.debug("use_tool: tool={!r} version={!r} dir={!r} -> cwd={!r} global={}", tool_name, version, project_dir, cwd, global_)
+        tool_spec = f"{tool_name}@{version}"
+        args = ["use"]
+        if global_:
+            args.append("--global")
+        args.append(tool_spec)
+        effective_cwd = None if global_ else cwd
+        output = _run_mise(*args, cwd=effective_cwd)
+        scope = "globally" if global_ else f"in '{cwd}'"
+        return f"Configured {tool_spec} {scope}.\n{output}".strip()
+
+    return [_search_tool, _list_remote_versions, _trust_config, _use_tool]
+
+
+# Exported list for easy import in agent.py (no default repository path)
+MISE_TOOLS = create_mise_tools()

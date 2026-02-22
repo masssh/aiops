@@ -22,7 +22,7 @@ from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
 
 from src.agents.base import BaseAgent
-from src.agents.mise.tools import MISE_TOOLS
+from src.agents.mise.tools import create_mise_tools
 from src.core.llm import create_llm
 from src.core.logging import get_logger
 
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-_SYSTEM_PROMPT = """\
+_SYSTEM_PROMPT_BASE = """\
 You are a mise environment configuration assistant.
 mise (https://mise.jdx.dev) is a polyglot tool version manager that manages
 runtime versions (Node.js, Python, Ruby, Go, etc.) on a per-project basis.
@@ -50,7 +50,16 @@ Guidelines:
 - For use_tool, prefer pinning versions per-project (global_=False) unless the user explicitly asks for a global install.
 - When a version is unspecified, use 'latest' and inform the user.
 - If required parameters are missing, ask the user to supply them.
+{repository_note}\
 """
+
+
+def _build_system_prompt(repository_path: str | None) -> str:
+    if repository_path:
+        note = f"\nDefault repository path: {repository_path}\n- When project_dir is not explicitly specified, use '.' and it will automatically resolve to this path.\n"
+    else:
+        note = ""
+    return _SYSTEM_PROMPT_BASE.format(repository_note=note)
 
 
 class MiseAgent(BaseAgent):
@@ -59,21 +68,34 @@ class MiseAgent(BaseAgent):
     name: str = "mise"
     description: str = "Search, list, trust, and configure tool versions via mise."
 
+    def __init__(
+        self,
+        *,
+        repository_path: str | None = None,
+        verbose: bool = False,
+        session_id: str | None = None,
+    ) -> None:
+        super().__init__(verbose=verbose, session_id=session_id)
+        self.repository_path = repository_path
+
     def _build_graph(self) -> "CompiledStateGraph":
         """Build a LangGraph ReAct agent with mise tools."""
         llm = create_llm(verbose=self.verbose)
-        llm_with_tools = llm.bind_tools(MISE_TOOLS)
+        mise_tools = create_mise_tools(self.repository_path)
+        llm_with_tools = llm.bind_tools(mise_tools)
 
-        tool_node = ToolNode(MISE_TOOLS)
+        tool_node = ToolNode(mise_tools)
 
         # ----------------------------------------------------------------
         # Nodes
         # ----------------------------------------------------------------
 
+        system_prompt = _build_system_prompt(self.repository_path)
+
         def call_model(state: MessagesState) -> dict:  # type: ignore[type-arg]
             messages = state["messages"]
             if not any(isinstance(m, SystemMessage) for m in messages):
-                messages = [SystemMessage(content=_SYSTEM_PROMPT)] + messages
+                messages = [SystemMessage(content=system_prompt)] + messages
             logger.debug("Calling LLM with {} messages", len(messages))
             response = llm_with_tools.invoke(messages)
             return {"messages": [response]}
@@ -99,3 +121,20 @@ class MiseAgent(BaseAgent):
         graph.add_edge("tools", "mise_agent")
 
         return graph.compile()
+
+
+if __name__ == "__main__":
+    from src.agents.cli import run_agent_cli
+
+    def _add_arguments(parser):
+        parser.add_argument(
+            "--repository-path",
+            default=None,
+            metavar="PATH",
+            help="Local path to the repository used as the working directory for mise commands.",
+        )
+
+    def _build_kwargs(args):
+        return {"repository_path": args.repository_path}
+
+    run_agent_cli(MiseAgent, add_arguments=_add_arguments, build_kwargs=_build_kwargs)
