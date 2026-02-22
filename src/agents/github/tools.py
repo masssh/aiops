@@ -80,7 +80,17 @@ def clone_repository(
     """
     logger.debug("clone_repository: url={} destination={!r}", url, destination)
     if destination:
-        target = destination
+        # If destination is an existing directory (not a git repo), treat it as a
+        # parent directory and append the repo name — matching the behaviour of
+        # `git clone <url>` which creates a subdirectory named after the repo.
+        if os.path.isdir(destination) and not os.path.isdir(os.path.join(destination, ".git")):
+            repo_name = repo_name_from_url(url)
+            target = os.path.join(destination, repo_name)
+            logger.debug(
+                "destination={!r} is a directory; using {!r} as target", destination, target
+            )
+        else:
+            target = destination
     else:
         cfg = get_project_config()
         target = str(cfg.workspace / repo_name_from_url(url))
