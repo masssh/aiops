@@ -24,30 +24,34 @@ import sys
 import uuid
 from typing import TYPE_CHECKING, Callable
 
+from src.core.logging import get_logger
+
 if TYPE_CHECKING:
     from src.agents.base import BaseAgent
+
+logger = get_logger(__name__)
 
 
 def _interactive_loop(agent: "BaseAgent") -> None:
     """Run a simple REPL for the given agent."""
-    print(f"\n[aiops] Agent '{agent.name}' ready. Type 'quit' or 'exit' to leave.\n")
+    logger.info("Agent '{}' ready. Type 'quit' or 'exit' to leave.", agent.name)
     while True:
         try:
             user_input = input("You: ").strip()
         except (EOFError, KeyboardInterrupt):
-            print("\n[aiops] Session ended.")
+            logger.info("Session ended.")
             break
 
         if not user_input:
             continue
         if user_input.lower() in {"quit", "exit", "q"}:
-            print("[aiops] Goodbye.")
+            logger.info("Goodbye.")
             break
 
         try:
-            print(f"\nAgent: {agent.run(user_input)}\n")
+            logger.info("Agent: {}", agent.run(user_input))
         except Exception as exc:
-            print(f"[error] {exc}\n")
+            logger.error("Agent error: {}", exc)
 
 
 def run_agent_cli(
@@ -103,9 +107,9 @@ def run_agent_cli(
 
     if args.query:
         try:
-            print(agent.run(args.query))
+            logger.info("{}", agent.run(args.query))
         except Exception as exc:
-            print(f"[error] {exc}", file=sys.stderr)
+            logger.error("Fatal: {}", exc)
             sys.exit(1)
     else:
         _interactive_loop(agent)

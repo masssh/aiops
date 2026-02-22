@@ -230,3 +230,9 @@ class MainAgent(BaseAgent):
         graph.add_edge("synthesizer", END)
 
         return graph.compile()
+
+
+if __name__ == "__main__":
+    from src.agents.cli import run_agent_cli
+
+    run_agent_cli(MainAgent)

@@ -131,28 +131,27 @@ def _run_interactive(agent_instance: object, agent_name: str) -> None:
     from src.core.logging import get_logger
 
     logger = get_logger("main")
-    print(f"\n[aiops] Agent '{agent_name}' ready. Type 'quit' or 'exit' to leave.\n")
+    logger.info("Agent '{}' ready. Type 'quit' or 'exit' to leave.", agent_name)
 
     while True:
         try:
             user_input = input("You: ").strip()
         except (EOFError, KeyboardInterrupt):
-            print("\n[aiops] Session ended.")
+            logger.info("Session ended.")
             break
 
         if not user_input:
             continue
 
         if user_input.lower() in {"quit", "exit", "q"}:
-            print("[aiops] Goodbye.")
+            logger.info("Goodbye.")
             break
 
         try:
             response = agent_instance.run(user_input)  # type: ignore[union-attr]
-            print(f"\nAgent: {response}\n")
+            logger.info("Agent: {}", response)
         except Exception as exc:
             logger.error("Agent error: {}", exc)
-            print(f"[error] {exc}\n")
 
 
 # ---------------------------------------------------------------------------
@@ -169,6 +168,10 @@ def main() -> int:
     # ---- Logging setup (must happen before agent imports) ---------------
     setup_logging()
 
+    from src.core.logging import get_logger
+
+    logger = get_logger("main")
+
     if debug_agent:
         enable_debug_for_agent(debug_agent)
         os.environ["DEBUG_AGENT"] = debug_agent  # propagate to sub-processes
@@ -178,7 +181,7 @@ def main() -> int:
     try:
         get_project_config()
     except (FileNotFoundError, ValueError) as exc:
-        print(f"[error] {exc}", file=sys.stderr)
+        logger.error("{}", exc)
         return 1
 
     # ---- Agent registry -------------------------------------------------
@@ -186,20 +189,16 @@ def main() -> int:
 
     agent_name: str = args.agent.lower()
     if agent_name not in AGENT_REGISTRY:
-        print(
-            f"[error] Unknown agent '{agent_name}'. "
-            f"Available: {', '.join(AGENT_REGISTRY.keys())}",
-            file=sys.stderr,
+        logger.error(
+            "Unknown agent '{}'. Available: {}",
+            agent_name,
+            ", ".join(AGENT_REGISTRY.keys()),
         )
         return 1
 
     # ---- Instantiate agent ----------------------------------------------
     verbose = debug_agent == agent_name
     session_id = args.session_id or str(uuid.uuid4())
-
-    from src.core.logging import get_logger
-
-    logger = get_logger("main")
     logger.info(
         "Starting agent '{}' (verbose={}, session_id={})", agent_name, verbose, session_id
     )
@@ -211,7 +210,7 @@ def main() -> int:
     if args.query:
         try:
             response = agent_instance.run(args.query)
-            print(response)
+            logger.info("{}", response)
         except Exception as exc:
             logger.error("Fatal: {}", exc)
             return 1

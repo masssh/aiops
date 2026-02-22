@@ -89,3 +89,9 @@ class GitHubAgent(BaseAgent):
         graph.add_edge("tools", "github_agent")  # tools always return to agent
 
         return graph.compile()
+
+
+if __name__ == "__main__":
+    from src.agents.cli import run_agent_cli
+
+    run_agent_cli(GitHubAgent)
