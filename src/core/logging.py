@@ -10,10 +10,12 @@ Usage:
 
 from __future__ import annotations
 
+import json
 import logging
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+from langchain_core.callbacks import BaseCallbackHandler
 from loguru import logger
 
 if TYPE_CHECKING:
@@ -127,6 +129,23 @@ def get_logger(name: str) -> "logger.__class__":  # type: ignore[valid-type]
         logger.info("starting agent")
     """
     return logger.bind(name=name)
+
+
+class ToolLoggingCallbackHandler(BaseCallbackHandler):
+    """LangChain callback that logs every tool invocation at INFO level."""
+
+    def on_tool_start(
+        self,
+        serialized: dict[str, Any],
+        input_str: str,
+        **kwargs: Any,
+    ) -> None:
+        tool_name = serialized.get("name", "unknown")
+        try:
+            args: Any = json.loads(input_str)
+        except (json.JSONDecodeError, TypeError):
+            args = input_str
+        get_logger("tools").info("Tool call: {} args={}", tool_name, args)
 
 
 def enable_debug_for_agent(agent_name: str) -> None:

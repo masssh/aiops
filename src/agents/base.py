@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 from langchain_core.messages import HumanMessage
 
 from src.core import monitoring
-from src.core.logging import get_logger
+from src.core.logging import ToolLoggingCallbackHandler, get_logger
 
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
@@ -87,7 +87,9 @@ class BaseAgent(abc.ABC):
 
     def _build_config(self, **kwargs: Any) -> dict[str, Any]:
         """Assemble the ``config`` dict passed to ``graph.invoke``."""
-        callbacks = [cb for cb in [monitoring.get_callback_handler()] if cb]
+        callbacks: list[Any] = [ToolLoggingCallbackHandler()]
+        if monitoring.is_enabled():
+            callbacks.append(monitoring.get_callback_handler())
         config: dict[str, Any] = {"callbacks": callbacks, **kwargs}
         return config
 
