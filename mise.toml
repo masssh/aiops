@@ -57,6 +57,23 @@ run = '''
 '''
 
 # ---------------------------------------------------------------------------
+# repository_analyzer agent
+# ---------------------------------------------------------------------------
+
+[tasks.repository-analyzer]
+description = "Repository analyzer agent — interactive: mise run repository-analyzer [-- --project-path /path]"
+run = ".venv/bin/python -m src.agents.repository_analyzer.agent $@"
+
+[tasks."repository-analyzer:test"]
+description = "Repository analyzer agent — test: analyse a cloned repo"
+env.QUERY = "List the top-level packages and summarise the overall structure of this repository"
+run = '''
+.venv/bin/python -m src.agents.repository_analyzer.agent \
+  --query "$QUERY" \
+  --project-path ./workspace/repos/Building-Spring-Boot-Web-Applications-Kotlin
+'''
+
+# ---------------------------------------------------------------------------
 # main (orchestrator) agent
 # ---------------------------------------------------------------------------
 

@@ -11,6 +11,8 @@ dependencies = [
     "langchain-google-genai>=2.0",
     # LangGraph for agent orchestration
     "langgraph>=0.2",
+    # MCP (Model Context Protocol) adapter for LangChain tools
+    "langchain-mcp-adapters>=0.1",
     # Monitoring
     "langfuse>=3.0",
     # Logging
