@@ -117,6 +117,7 @@ class RepositoryAnalyzerAgent(BaseAgent):
     async def _arun(self, message: str, **kwargs: Any) -> str:
         """Connect to Serena MCP, build the ReAct graph, and invoke it."""
         from langchain_mcp_adapters.client import MultiServerMCPClient  # type: ignore[import-untyped]
+        from langchain_mcp_adapters.tools import load_mcp_tools  # type: ignore[import-untyped]
 
         self._logger.info("Agent '{}' received: {!r}", self.name, message[:120])
         self._logger.debug("Starting Serena MCP server for project: {}", self.project_path)
@@ -134,30 +135,36 @@ class RepositoryAnalyzerAgent(BaseAgent):
                 "desktop-app",
                 "--open-web-dashboard",
                 "false",
+                "--log-level",
+                "WARNING",
             ],
             "transport": "stdio",
         }
 
         mcp_client = MultiServerMCPClient({"serena": serena_config})
-        all_tools: list[BaseTool] = await mcp_client.get_tools()
-        tools = [t for t in all_tools if t.name not in _WRITE_TOOLS]
-        self._logger.debug(
-            "Loaded {} tools from Serena MCP ({} write tools excluded)",
-            len(tools),
-            len(all_tools) - len(tools),
-        )
 
-        graph = self._build_analysis_graph(tools)
-        config = self._build_config(**kwargs)
-
-        token = set_current_agent(self.name)
-        try:
-            result = await graph.ainvoke(
-                {"messages": [HumanMessage(content=message)]},
-                config=config,
+        # Use a single persistent session so the Serena subprocess is started
+        # once and reused for every tool call during graph execution.
+        async with mcp_client.session("serena") as session:
+            all_tools: list[BaseTool] = await load_mcp_tools(session)
+            tools = [t for t in all_tools if t.name not in _WRITE_TOOLS]
+            self._logger.debug(
+                "Loaded {} tools from Serena MCP ({} write tools excluded)",
+                len(tools),
+                len(all_tools) - len(tools),
             )
-        finally:
-            _current_agent.reset(token)
+
+            graph = self._build_analysis_graph(tools)
+            config = self._build_config(**kwargs)
+
+            token = set_current_agent(self.name)
+            try:
+                result = await graph.ainvoke(
+                    {"messages": [HumanMessage(content=message)]},
+                    config=config,
+                )
+            finally:
+                _current_agent.reset(token)
 
         final_message = result["messages"][-1]
         response: str = (
