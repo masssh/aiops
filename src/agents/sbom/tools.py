@@ -101,81 +101,92 @@ def create_sbom_tools(project_path: str, repo_name: str) -> list:
         return "\n".join(lines)
 
     @tool
-    def get_application_dependencies(
+    def generate_component_sboms(
         sbom_path: Annotated[
             str,
-            "Path to the SBOM JSON file. Leave empty to use the default path under agent_output/.",
+            "Path to the root SBOM JSON file. Leave empty to use the default path under agent_output/.",
         ] = "",
     ) -> str:
-        """Show direct dependencies for each application component in the SBOM.
+        """Extract individual CycloneDX SBOMs for each sub-module from the root SBOM.
 
-        For every component classified as ``"type": "application"`` (root project
-        and sub-modules), looks up its entry in the ``dependencies`` section and
-        lists what it directly depends on, including the type of each dependency.
+        Gradle multi-project builds require the root project context to resolve
+        dependencies, so running cdxgen on a sub-module directory in isolation
+        produces an empty SBOM.  This tool instead reads the already-generated root
+        SBOM and walks the dependency graph to collect every transitive dependency
+        for each application sub-module, then writes a fully-populated
+        agent_output/repos/{repo}/components/{name}/sbom.json for each one.
         """
         path = sbom_path or _default_sbom
-        logger.debug("get_application_dependencies: path={!r}", path)
+        logger.debug("generate_component_sboms: sbom_path={!r}", path)
         if not Path(path).exists():
             return f"SBOM file not found at '{path}'. Run generate_sbom first."
         data = json.loads(Path(path).read_text(encoding="utf-8"))
 
-        # Build bom-ref -> component lookup from all sources except tools
-        ref_to_comp: dict[str, dict] = {}
         root = data.get("metadata", {}).get("component", {})
-        if root:
-            ref_to_comp[root["bom-ref"]] = root
-            for child in root.get("components", []):
-                ref_to_comp[child["bom-ref"]] = child
-        for c in data.get("components", []):
-            ref_to_comp[c["bom-ref"]] = c
+        sub_modules = [c for c in root.get("components", []) if c.get("type") == "application"]
+        if not sub_modules:
+            return "No sub-module application components found in SBOM."
 
-        # Build ref -> dependsOn lookup from dependencies section
+        # bom-ref → component object (library components only)
+        ref_to_comp: dict[str, dict] = {c["bom-ref"]: c for c in data.get("components", [])}
+
+        # ref → dependsOn list
         dep_map: dict[str, list[str]] = {
             d["ref"]: d.get("dependsOn", [])
             for d in data.get("dependencies", [])
         }
 
-        # Collect application components (root + direct children of root)
-        candidates: list[dict] = []
-        if root:
-            candidates.append(root)
-            candidates.extend(root.get("components", []))
-        apps = [c for c in candidates if c.get("type") == "application"]
+        sub_module_refs = {c["bom-ref"] for c in sub_modules}
 
-        if not apps:
-            return "No application-type components found in SBOM."
+        def collect_transitive(start_ref: str) -> set[str]:
+            """BFS over dep_map to collect all transitive dependency refs."""
+            visited: set[str] = set()
+            queue = list(dep_map.get(start_ref, []))
+            while queue:
+                ref = queue.pop()
+                if ref in visited:
+                    continue
+                visited.add(ref)
+                queue.extend(dep_map.get(ref, []))
+            return visited
 
-        lines: list[str] = []
-        for app in apps:
-            name = app.get("name", "?")
-            version = app.get("version", "N/A")
-            lines.append(f"{name}@{version}")
+        results: list[str] = []
+        for comp in sub_modules:
+            name = comp.get("name", "?")
+            bom_ref = comp.get("bom-ref", "")
 
-            bom_ref = app.get("bom-ref", "")
-            depends_on = dep_map.get(bom_ref, [])
+            transitive_refs = collect_transitive(bom_ref)
+            # Exclude other sub-modules; include only library/framework components
+            lib_refs = transitive_refs - sub_module_refs
+            transitive_components = [ref_to_comp[r] for r in lib_refs if r in ref_to_comp]
 
-            dep_components = [ref_to_comp.get(r, {"bom-ref": r}) for r in depends_on]
-            dep_data = {"component": app, "dependencies": dep_components}
+            all_refs = {bom_ref} | transitive_refs
+            sub_deps = [
+                d for d in data.get("dependencies", []) if d["ref"] in all_refs
+            ]
+
+            component_sbom = {
+                "bomFormat": data.get("bomFormat", "CycloneDX"),
+                "specVersion": data.get("specVersion", "1.6"),
+                "version": 1,
+                "metadata": {**data.get("metadata", {}), "component": comp},
+                "components": transitive_components,
+                "services": [],
+                "dependencies": sub_deps,
+            }
+
             comp_dir = cfg.component_dir(repo_name, name)
-            (comp_dir / "dependencies.json").write_text(
-                json.dumps(dep_data, ensure_ascii=False, indent=2), encoding="utf-8"
+            out_path = comp_dir / "sbom.json"
+            out_path.write_text(
+                json.dumps(component_sbom, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            logger.debug(
+                "generate_component_sboms: wrote {!r} ({} components)", str(out_path), len(transitive_components)
+            )
+            results.append(
+                f"- {name}: {len(transitive_components)} components -> '{out_path}'."
             )
 
-            if not depends_on:
-                lines.append("  (no dependencies)")
-            else:
-                for i, dep_ref in enumerate(depends_on):
-                    prefix = "  └─" if i == len(depends_on) - 1 else "  ├─"
-                    dep = ref_to_comp.get(dep_ref)
-                    if dep:
-                        dep_name = dep.get("name", dep_ref)
-                        dep_ver = dep.get("version", "N/A")
-                        dep_type = dep.get("type", "?")
-                        lines.append(f"{prefix} {dep_name}@{dep_ver}  [{dep_type}]")
-                    else:
-                        lines.append(f"{prefix} {dep_ref}  [unknown]")
-            lines.append("")
+        return "\n".join(results)
 
-        return "\n".join(lines).rstrip()
-
-    return [generate_sbom, list_application_components, get_application_dependencies]
+    return [generate_sbom, list_application_components, generate_component_sboms]
