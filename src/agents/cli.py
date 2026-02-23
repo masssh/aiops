@@ -24,7 +24,7 @@ import sys
 import uuid
 from typing import TYPE_CHECKING, Callable
 
-from src.core.logging import get_logger
+from src.core.logging import extract_content_blocks, get_logger, pjson
 
 if TYPE_CHECKING:
     from src.agents.base import BaseAgent
@@ -103,12 +103,13 @@ def run_agent_cli(
     if build_kwargs is not None:
         kwargs.update(build_kwargs(args))
 
-    logger.info("Starting {} with kwargs: {}", agent_class.__name__, kwargs)
+    logger.info("Starting {} with kwargs:\n{}", agent_class.__name__, pjson(kwargs))
     agent = agent_class(**kwargs)
 
     if args.query:
         try:
-            logger.info("{}", agent.run(args.query))
+            result = agent.run(args.query)
+            logger.info("Result:\n{}", extract_content_blocks(result))
         except Exception as exc:
             logger.error("Fatal: {}", exc)
             sys.exit(1)

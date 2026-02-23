@@ -27,7 +27,7 @@ from langgraph.prebuilt import ToolNode
 
 from src.agents.base import BaseAgent
 from src.core.llm import create_llm
-from src.core.logging import get_logger
+from src.core.logging import extract_content_blocks, get_logger
 from src.core.process import _current_agent, set_current_agent
 
 if TYPE_CHECKING:
@@ -172,7 +172,7 @@ class RepositoryAnalyzerAgent(BaseAgent):
             if isinstance(final_message.content, str)
             else str(final_message.content)
         )
-        self._logger.info("Agent '{}' replied: {!r}", self.name, response[:120])
+        self._logger.info("Agent '{}' replied: {}", self.name, extract_content_blocks(response)[:120])
         return response
 
     # ------------------------------------------------------------------

@@ -10,6 +10,7 @@ Usage:
 
 from __future__ import annotations
 
+import ast
 import json
 import logging
 import sys
@@ -132,12 +133,201 @@ def get_logger(name: str) -> "logger.__class__":  # type: ignore[valid-type]
     return logger.bind(name=name)
 
 
+# Maximum characters to show for tool output before truncating.
+_MAX_OUTPUT_LEN = 500
+
+# Only these scalar types are safe to emit as-is in log lines.
+_SAFE_SCALAR_TYPES = (str, int, float, bool, type(None))
+
+
+def _sanitize_value(value: Any, depth: int = 0) -> tuple[bool, Any]:
+    """Recursively decide whether *value* is safe to log.
+
+    Returns ``(keep, sanitized)`` where *keep* is False when the value
+    should be dropped entirely.
+
+    Rules:
+    - Scalars (str / int / float / bool / None): always keep.
+    - list: keep only if every element is a safe scalar; drop the whole
+      list otherwise to avoid leaking partially-opaque objects.
+    - dict: recurse up to *depth* 2; keep key/value pairs whose value
+      passes this check, drop the rest silently.
+    - Anything else (class instances, callables, …): drop.
+    """
+    if isinstance(value, _SAFE_SCALAR_TYPES):
+        return True, value
+    if depth >= 2:
+        return False, None
+    if isinstance(value, list):
+        if all(isinstance(v, _SAFE_SCALAR_TYPES) for v in value):
+            return True, value
+        return False, None
+    if isinstance(value, dict):
+        filtered = {}
+        for k, v in value.items():
+            keep, sv = _sanitize_value(v, depth + 1)
+            if keep:
+                filtered[k] = sv
+        return (True, filtered) if filtered else (False, None)
+    # Class instances, ToolRuntime, AsyncCallbackManager, etc. — drop.
+    return False, None
+
+
+def _filter_tool_args(raw: Any) -> dict[str, Any]:
+    """Return a log-safe dict extracted from *raw* tool arguments.
+
+    Accepts whatever came out of ``input_str`` parsing (dict, str, …) and
+    produces a flat dict containing only JSON-primitive values.  Complex
+    objects injected by LangGraph (ToolRuntime, config, stream_writer, …)
+    are silently dropped regardless of their key name.
+
+    When *raw* is a bare scalar (e.g. an MCP tool called with a single
+    positional string), it is preserved under the key ``"input"`` rather
+    than being discarded.
+    """
+    if isinstance(raw, dict):
+        result = {}
+        for key, value in raw.items():
+            keep, sv = _sanitize_value(value)
+            if keep:
+                result[key] = sv
+        return result
+    if isinstance(raw, _SAFE_SCALAR_TYPES) and raw is not None:
+        return {"input": raw}
+    return {}
+
+
+def _try_json_pretty(text: str) -> str:
+    """If *text* is a JSON string, return it pretty-printed; otherwise return as-is."""
+    try:
+        return pjson(json.loads(text))
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return text
+
+
+def extract_content_blocks(value: Any) -> str:
+    """Extract plain text from a LangChain content-blocks structure.
+
+    Accepts:
+    - A string repr of a list (e.g. the return value of ``agent.run()``)
+    - An actual list of content blocks ``[{"type": "text", "text": "…"}, …]``
+    - A ``ToolMessage``-like object (with ``.content``)
+    - A plain string
+
+    Returns the concatenated text from all ``{"type": "text"}`` blocks,
+    or the original value stringified when no blocks are found.
+    """
+    # String that may be a Python list repr (agent.run() returns this format)
+    if isinstance(value, str):
+        try:
+            parsed = ast.literal_eval(value)
+            if isinstance(parsed, list):
+                value = parsed
+        except (ValueError, SyntaxError):
+            return value
+
+    # Unwrap ToolMessage-like objects
+    content = getattr(value, "content", value)
+
+    if isinstance(content, list):
+        texts = [
+            block["text"]
+            for block in content
+            if isinstance(block, dict) and block.get("type") == "text" and "text" in block
+        ]
+        if texts:
+            return "\n".join(texts)
+
+    if isinstance(content, str):
+        return content
+
+    return str(content)
+
+
+def _extract_tool_output(output: Any) -> str:
+    """Extract human-readable text from a LangChain tool output.
+
+    Handles:
+    - ``ToolMessage`` / objects with a ``.content`` attribute
+    - Content-blocks lists ``[{"type": "text", "text": "…"}, …]``
+    - Plain strings
+    - Dicts / lists  (formatted with ``pjson``)
+    """
+    # Unwrap ToolMessage-like objects
+    content = getattr(output, "content", output)
+
+    # Content-blocks format used by Claude / Gemini tool responses
+    if isinstance(content, list):
+        texts = [
+            block["text"]
+            for block in content
+            if isinstance(block, dict) and block.get("type") == "text" and "text" in block
+        ]
+        if texts:
+            return "\n".join(texts)
+
+    if isinstance(content, str):
+        return content
+
+    if isinstance(content, (dict, list)):
+        return pjson(content)
+
+    return str(content)
+
+
+def pjson(obj: Any) -> str:
+    """Serialise *obj* to a pretty-printed JSON string suitable for log output.
+
+    Non-serialisable values (class instances, bytes, …) fall back to their
+    ``str()`` representation via ``default=str``, so this never raises.
+
+    Example::
+        logger.info("kwargs:\\n{}", pjson(kwargs))
+    """
+    return json.dumps(obj, indent=2, ensure_ascii=False, default=str)
+
+
+def _parse_input_str(input_str: str) -> Any:
+    """Parse *input_str* into a Python object with a three-stage fallback.
+
+    1. ``json.loads``      — standard JSON (most common case).
+    2. ``ast.literal_eval`` — Python-repr dicts/lists of primitives
+                              (used by LangGraph when args include
+                              non-JSON-serialisable objects).
+    3. Empty dict          — give up silently; never let raw garbage through.
+    """
+    try:
+        return json.loads(input_str)
+    except (json.JSONDecodeError, TypeError):
+        pass
+    try:
+        parsed = ast.literal_eval(input_str)
+        if isinstance(parsed, (dict, list, str, int, float, bool, type(None))):
+            return parsed
+    except (ValueError, SyntaxError):
+        pass
+    return {}
+
+
 class ToolLoggingCallbackHandler(BaseCallbackHandler):
     """LangChain callback that logs every tool invocation at INFO level."""
 
     def __init__(self, agent_name: str = "unknown") -> None:
         super().__init__()
         self._agent_name = agent_name
+
+    def on_llm_start(
+        self,
+        serialized: dict[str, Any],
+        prompts: list[str],
+        **kwargs: Any,
+    ) -> None:
+        model = (
+            serialized.get("kwargs", {}).get("model")
+            or serialized.get("kwargs", {}).get("model_name")
+            or serialized.get("name", "unknown")
+        )
+        get_logger("tools").debug("[{}] LLM call: {}", self._agent_name, model)
 
     def on_tool_start(
         self,
@@ -146,11 +336,15 @@ class ToolLoggingCallbackHandler(BaseCallbackHandler):
         **kwargs: Any,
     ) -> None:
         tool_name = serialized.get("name", "unknown")
-        try:
-            args: Any = json.loads(input_str)
-        except (json.JSONDecodeError, TypeError):
-            args = input_str
-        get_logger("tools").info("[{}] Tool call: {} args={}", self._agent_name, tool_name, args)
+        # LangChain v0.2+ passes the actual inputs dict via kwargs["inputs"].
+        # Fall back to parsing input_str only when it is absent.
+        raw = kwargs.get("inputs")
+        if not isinstance(raw, dict):
+            raw = _parse_input_str(input_str)
+        args = _filter_tool_args(raw)
+        get_logger("tools").info(
+            "[{}] Tool call: {} | args:\n{}", self._agent_name, tool_name, pjson(args)
+        )
 
     def on_tool_end(
         self,
@@ -159,7 +353,10 @@ class ToolLoggingCallbackHandler(BaseCallbackHandler):
         run_id: UUID,
         **kwargs: Any,
     ) -> None:
-        get_logger("tools").info("[{}] Tool result: {}", self._agent_name, output)
+        output_str = _try_json_pretty(_extract_tool_output(output))
+        if len(output_str) > _MAX_OUTPUT_LEN:
+            output_str = output_str[:_MAX_OUTPUT_LEN] + "\n... [truncated]"
+        get_logger("tools").info("[{}] Tool result:\n{}", self._agent_name, output_str)
 
     def on_tool_error(
         self,
@@ -168,7 +365,11 @@ class ToolLoggingCallbackHandler(BaseCallbackHandler):
         run_id: UUID,
         **kwargs: Any,
     ) -> None:
-        get_logger("tools").error("[{}] Tool error: {}", self._agent_name, error)
+        get_logger("tools").error(
+            "[{}] Tool error:\n{}",
+            self._agent_name,
+            pjson({"error": type(error).__name__, "detail": str(error)}),
+        )
 
 
 def enable_debug_for_agent(agent_name: str) -> None:
