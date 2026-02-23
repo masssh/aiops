@@ -82,7 +82,34 @@ class BaseAgent(abc.ABC):
             else str(final_message.content)
         )
         self._logger.info("Agent '{}' replied: {}", self.name, extract_content_blocks(response))
+        self._log_token_usage(result["messages"])
         return response
+
+    @staticmethod
+    def _fmt_tokens(n: int) -> str:
+        if n >= 1_000_000:
+            return f"{n / 1_000_000:.1f}M"
+        if n >= 1_000:
+            return f"{n / 1_000:.1f}K"
+        return str(n)
+
+    def _log_token_usage(self, messages: list[Any]) -> None:
+        """Sum ``usage_metadata`` across all AI messages and log the totals."""
+        total_in = total_out = total = 0
+        for msg in messages:
+            usage = getattr(msg, "usage_metadata", None)
+            if usage:
+                total_in += usage.get("input_tokens", 0)
+                total_out += usage.get("output_tokens", 0)
+                total += usage.get("total_tokens", 0)
+        if total > 0:
+            self._logger.info(
+                "Agent '{}' token usage: input={} | output={} | total={}",
+                self.name,
+                self._fmt_tokens(total_in),
+                self._fmt_tokens(total_out),
+                self._fmt_tokens(total),
+            )
 
     def _get_graph(self) -> "CompiledStateGraph":
         if self._graph is None:

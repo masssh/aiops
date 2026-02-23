@@ -173,6 +173,7 @@ class RepositoryAnalyzerAgent(BaseAgent):
             else str(final_message.content)
         )
         self._logger.info("Agent '{}' replied: {}", self.name, extract_content_blocks(response)[:120])
+        self._log_token_usage(result["messages"])
         return response
 
     # ------------------------------------------------------------------
