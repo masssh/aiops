@@ -40,6 +40,7 @@ You have access to the following tools:
 - generate_sbom: Run cdxgen against the whole project and write the root SBOM to a JSON file.
 - list_application_components: Extract top-level executable components (type=application) from the SBOM.
 - generate_component_sboms: Extract per-component sbom.json for each sub-module by walking the dependency graph of the root SBOM.
+- get_application_dependencies: Read the per-component sbom.json files and return dependency PURLs grouped by component name.
 
 Guidelines:
 - Do NOT call generate_sbom unless the user explicitly requests SBOM generation, or a tool returns an error stating the SBOM file does not exist.
