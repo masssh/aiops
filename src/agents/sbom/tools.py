@@ -189,4 +189,42 @@ def create_sbom_tools(project_path: str, repo_name: str) -> list:
 
         return "\n".join(results)
 
-    return [generate_sbom, list_application_components, generate_component_sboms]
+    @tool
+    def get_application_dependencies(
+        component_name: Annotated[
+            str,
+            "Application component name to look up. Leave empty to return dependencies for all components.",
+        ] = "",
+    ) -> str:
+        """Return dependency PURLs for one or all application sub-modules.
+
+        Reads the per-component sbom.json files produced by generate_component_sboms
+        and returns a compact JSON object mapping component name to a sorted list of
+        dependency PURLs.  Run generate_component_sboms first if the files do not exist.
+        """
+        logger.debug("get_application_dependencies: component_name={!r}", component_name)
+
+        if component_name:
+            names = [component_name]
+        else:
+            comp_root = _repo_out / "components"
+            if not comp_root.exists():
+                return "No component SBOMs found. Run generate_component_sboms first."
+            names = [p.name for p in comp_root.iterdir() if (p / "sbom.json").exists()]
+            if not names:
+                return "No component SBOMs found. Run generate_component_sboms first."
+
+        result: dict[str, list[str]] = {}
+        for name in sorted(names):
+            comp_sbom_path = cfg.component_dir(repo_name, name) / "sbom.json"
+            if not comp_sbom_path.exists():
+                result[name] = [f"ERROR: not found. Run generate_component_sboms first."]
+                continue
+            comp_data = json.loads(comp_sbom_path.read_text(encoding="utf-8"))
+            result[name] = sorted(
+                c["purl"] for c in comp_data.get("components", []) if c.get("purl")
+            )
+
+        return json.dumps(result, ensure_ascii=False)
+
+    return [generate_sbom, list_application_components, generate_component_sboms, get_application_dependencies]
