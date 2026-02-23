@@ -81,7 +81,7 @@ class BaseAgent(abc.ABC):
             if isinstance(final_message.content, str)
             else str(final_message.content)
         )
-        self._logger.info("Agent '{}' replied: {}", self.name, extract_content_blocks(response)[:120])
+        self._logger.info("Agent '{}' replied: {}", self.name, extract_content_blocks(response))
         return response
 
     def _get_graph(self) -> "CompiledStateGraph":
