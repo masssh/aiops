@@ -74,6 +74,23 @@ run = '''
 '''
 
 # ---------------------------------------------------------------------------
+# repomap agent
+# ---------------------------------------------------------------------------
+
+[tasks.repomap]
+description = "RepoMap agent — interactive: mise run repomap [-- --project-path /path]"
+run = ".venv/bin/python -m src.agents.repomap.agent $@"
+
+[tasks."repomap:test"]
+description = "RepoMap agent — test: map a cloned repo"
+env.QUERY = "Generate a repository map for this project"
+run = '''
+.venv/bin/python -m src.agents.repomap.agent \
+  --query "$QUERY" \
+  --project-path ./workspace/repos/Building-Spring-Boot-Web-Applications-Kotlin
+'''
+
+# ---------------------------------------------------------------------------
 # main (orchestrator) agent
 # ---------------------------------------------------------------------------
 

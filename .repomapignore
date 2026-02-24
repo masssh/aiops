@@ -1,0 +1,11 @@
+# Directories and files to exclude from repomap.
+# One pattern per line. Blank lines and lines starting with '#' are ignored.
+# Patterns are matched against bare file/directory names using fnmatch rules.
+# Examples:
+#   .gradle        — exact name match
+#   *.min.js       — glob pattern
+#   test_*         — glob pattern
+
+.gradle
+.serena
+test
