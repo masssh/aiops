@@ -1,19 +1,20 @@
-"""LLM factory – creates a Gemini ChatModel with shared defaults.
+"""LLM factory – creates a ChatModel for the configured provider (Gemini or OpenAI).
 
 Usage::
 
     from src.core.llm import create_llm
 
-    llm = create_llm()               # default Gemini model
-    llm = create_llm(model="gemini-2.0-pro", temperature=0.2)
-    llm = create_llm(verbose=True)   # enable LangChain verbose output
+    llm = create_llm()                        # uses LLM_PROVIDER from .env
+    llm = create_llm(model="gpt-4o")          # override model
+    llm = create_llm(temperature=0.2)
+    llm = create_llm(verbose=True)            # enable LangChain verbose output
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.language_models import BaseChatModel
 
 from src.core.logging import get_logger
 
@@ -26,39 +27,100 @@ def create_llm(
     temperature: float = 0.0,
     verbose: bool = False,
     **kwargs: Any,
-) -> ChatGoogleGenerativeAI:
-    """Instantiate and return a Gemini ChatModel.
+) -> BaseChatModel:
+    """Instantiate and return a ChatModel for the active LLM provider.
+
+    The provider is controlled by the ``LLM_PROVIDER`` environment variable
+    (default: ``"google"``).  Supported values:
+
+    * ``"google"`` — Google Gemini via ``ChatGoogleGenerativeAI``
+    * ``"openai"`` — OpenAI (or compatible) via ``ChatOpenAI``
 
     Args:
-        model:       Gemini model ID.  Defaults to ``settings.gemini_model``.
+        model:       Model ID.  Defaults to provider-specific default
+                     (``GEMINI_MODEL`` or ``OPENAI_MODEL``).
         temperature: Sampling temperature (0.0 = deterministic).
         verbose:     Enable LangChain verbose logging for this model instance.
-        **kwargs:    Additional keyword arguments forwarded to
-                     ``ChatGoogleGenerativeAI``.
+        **kwargs:    Additional keyword arguments forwarded to the underlying
+                     ChatModel class.
 
     Returns:
-        A configured ``ChatGoogleGenerativeAI`` instance.
+        A configured ``BaseChatModel`` instance.
 
     Raises:
-        ValueError: If ``GOOGLE_API_KEY`` is not set.
+        ValueError: If the required API key for the active provider is not set.
     """
     from src.core.config import settings  # lazy to allow patching in tests
 
-    effective_model = model or settings.gemini_model
+    provider = settings.llm_provider
+    effective_model = model or settings.active_model
 
-    if not settings.google_api_key:
-        raise ValueError(
-            "GOOGLE_API_KEY is not set. "
-            "Copy .env.example to .env and fill in your API key."
+    logger.debug(
+        "Creating LLM: provider={}, model={}, temperature={}, verbose={}",
+        provider,
+        effective_model,
+        temperature,
+        verbose,
+    )
+
+    if provider == "openai":
+        return _create_openai(
+            model=effective_model,
+            temperature=temperature,
+            verbose=verbose,
+            **kwargs,
         )
 
-    logger.debug("Creating LLM: model={}, temperature={}, verbose={}", effective_model, temperature, verbose)
+    # Default: Google Gemini
+    return _create_gemini(
+        model=effective_model,
+        temperature=temperature,
+        verbose=verbose,
+        **kwargs,
+    )
+
+
+def _create_gemini(
+    *,
+    model: str,
+    temperature: float,
+    verbose: bool,
+    **kwargs: Any,
+) -> BaseChatModel:
+    from langchain_google_genai import ChatGoogleGenerativeAI
+
+    from src.core.config import settings
 
     return ChatGoogleGenerativeAI(
-        model=effective_model,
+        model=model,
         google_api_key=settings.google_api_key,
         temperature=temperature,
         verbose=verbose,
         convert_system_message_to_human=True,  # Gemini requires this
+        **kwargs,
+    )
+
+
+def _create_openai(
+    *,
+    model: str,
+    temperature: float,
+    verbose: bool,
+    **kwargs: Any,
+) -> BaseChatModel:
+    from langchain_openai import ChatOpenAI
+
+    from src.core.config import settings
+
+    extra: dict[str, Any] = {}
+    if settings.openai_base_url:
+        extra["base_url"] = settings.openai_base_url
+
+    return ChatOpenAI(
+        model=model,
+        api_key=settings.openai_api_key,  # type: ignore[arg-type]
+        temperature=temperature,
+        verbose=verbose,
+        **extra,
         **kwargs,
     )
