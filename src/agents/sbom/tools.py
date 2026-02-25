@@ -21,6 +21,45 @@ from src.core.project import get_project_config
 
 logger = get_logger(__name__)
 
+# ---------------------------------------------------------------------------
+# Project-type detection
+# ---------------------------------------------------------------------------
+
+# Ordered list of (indicator_files_or_globs, cdxgen_type).
+# Earlier entries take priority. Glob patterns (containing "*") are matched
+# against the root directory; plain names are checked with Path.exists().
+_PROJECT_TYPE_INDICATORS: list[tuple[tuple[str, ...], str]] = [
+    (("pom.xml", "mvnw", ".mvn"), "java"),
+    (("build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts", "gradlew"), "java"),
+    (("package.json",), "js"),
+    (("pyproject.toml", "setup.py", "requirements.txt", "Pipfile"), "python"),
+    (("go.mod",), "go"),
+    (("Cargo.toml",), "rust"),
+    (("Gemfile",), "ruby"),
+    (("*.csproj", "*.sln"), "dotnet"),
+]
+
+
+def _detect_project_type(root: Path) -> str:
+    """Infer the cdxgen ``-t`` type from build/manifest files in *root*.
+
+    Checks indicator files in priority order so that the primary source
+    language takes precedence over tooling metadata such as
+    ``.github/workflows/``.
+
+    Returns:
+        A cdxgen-compatible type string (e.g. ``"java"``, ``"python"``),
+        or ``""`` if no known indicator is found.
+    """
+    for indicators, project_type in _PROJECT_TYPE_INDICATORS:
+        for indicator in indicators:
+            if "*" in indicator:
+                if any(root.glob(indicator)):
+                    return project_type
+            elif (root / indicator).exists():
+                return project_type
+    return ""
+
 
 def create_sbom_tools(project_path: str, repo_name: str) -> list:
     """Create SBOM tools pinned to *project_path*.
@@ -53,10 +92,18 @@ def create_sbom_tools(project_path: str, repo_name: str) -> list:
         JSON.  The SBOM captures all detected dependencies and their metadata.
         Do NOT pass an explicit output_path unless instructed — the default
         writes to agent_output/repos/{repo}/sbom.json.
+
+        The project type (e.g. java, python, js) is detected automatically
+        from build files in the project directory.
         """
         out = output_path or _default_sbom
-        logger.debug("generate_sbom: project={!r} output={!r}", _project_path, out)
-        run_command("cdxgen", "--json-pretty", "-o", out, _project_path)
+        project_type = _detect_project_type(Path(_project_path))
+        logger.debug(
+            "generate_sbom: project={!r} output={!r} detected_type={!r}",
+            _project_path, out, project_type or "(auto)",
+        )
+        extra_args = ["-t", project_type] if project_type else []
+        run_command("cdxgen", "--json-pretty", *extra_args, "-o", out, _project_path)
         return f"SBOM generated at '{out}'."
 
     @tool

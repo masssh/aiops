@@ -19,7 +19,8 @@ run = ".venv/bin/python -m src.agents.github.agent $@"
 [tasks."github:test"]
 description = "GitHub agent — test: clone octocat/Hello-World"
 run = '''
-.venv/bin/python -m src.agents.github.agent --query "Clone https://github.com/gradle-samples/Building-Spring-Boot-Web-Applications-Kotlin into ./workspace/repos"
+#.venv/bin/python -m src.agents.github.agent --query "Clone https://github.com/gradle-samples/Building-Spring-Boot-Web-Applications-Kotlin into ./workspace/repos"
+.venv/bin/python -m src.agents.github.agent --query "Clone https://github.com/spring-petclinic/spring-petclinic-microservices into ./workspace/repos"
 '''
 
 # ---------------------------------------------------------------------------
@@ -53,7 +54,8 @@ env.QUERY = "Generate the SBOM and get application dependencies"
 run = '''
 .venv/bin/python -m src.agents.sbom.agent \
   --query "$QUERY" \
-  --project-path ./workspace/repos/Building-Spring-Boot-Web-Applications-Kotlin
+  --project-path ./workspace/repos/spring-petclinic-microservices
+#  --project-path ./workspace/repos/Building-Spring-Boot-Web-Applications-Kotlin
 '''
 
 # ---------------------------------------------------------------------------
@@ -87,7 +89,7 @@ env.QUERY = "Generate a repository map for this project"
 run = '''
 .venv/bin/python -m src.agents.repomap.agent \
   --query "$QUERY" \
-  --project-path ./workspace/repos/Building-Spring-Boot-Web-Applications-Kotlin
+  --project-path ./workspace/repos/spring-petclinic-microservices
 '''
 
 # ---------------------------------------------------------------------------
