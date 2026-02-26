@@ -93,6 +93,23 @@ run = '''
 '''
 
 # ---------------------------------------------------------------------------
+# scip agent
+# ---------------------------------------------------------------------------
+
+[tasks.scip]
+description = "SCIP agent — interactive: mise run scip [-- --project-path /path]"
+run = ".venv/bin/python -m src.agents.scip.agent $@"
+
+[tasks."scip:test"]
+description = "SCIP agent — test: index a repo and detect communities"
+env.QUERY = "Generate the SCIP index, load it into Neo4j, and find code communities"
+run = '''
+.venv/bin/python -m src.agents.scip.agent \
+  --query "$QUERY" \
+  --project-path ./workspace/repos/spring-petclinic-microservices
+'''
+
+# ---------------------------------------------------------------------------
 # main (orchestrator) agent
 # ---------------------------------------------------------------------------
 
