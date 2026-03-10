@@ -110,6 +110,22 @@ run = '''
 '''
 
 # ---------------------------------------------------------------------------
+# claudecode agent
+# ---------------------------------------------------------------------------
+
+[tasks.claudecode]
+description = "Claude Code delegation agent — interactive: mise run claudecode [-- --cwd /path]"
+run = ".venv/bin/python -m src.agents.claudecode.agent $@"
+
+[tasks."claudecode:test"]
+description = "Claude Code delegation agent — test: list files in current directory"
+run = '''
+.venv/bin/python -m src.agents.claudecode.agent \
+  --query "List all Python files in the src directory and summarise what each module does" \
+  --cwd .
+'''
+
+# ---------------------------------------------------------------------------
 # main (orchestrator) agent
 # ---------------------------------------------------------------------------
 

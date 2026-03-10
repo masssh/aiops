@@ -22,6 +22,8 @@ dependencies = [
     "pydantic-settings>=2.0",
     "python-dotenv>=1.0",
     "pyyaml>=6.0",
+    # Claude Code Agent SDK (task delegation)
+    "claude-agent-sdk>=0.1",
     # Utilities
     "httpx>=0.27",
     # SCIP agent
