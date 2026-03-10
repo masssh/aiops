@@ -1,4 +1,4 @@
-"""Tools for delegating tasks to Claude Code via the Agent SDK."""
+"""Tools for delegating tasks to the Claude Code CLI (claude --print)."""
 
 from __future__ import annotations
 
@@ -6,27 +6,26 @@ from typing import Annotated
 
 from langchain_core.tools import tool
 
+from src.core.process import run_command
+
 
 def create_claudecode_tools(
     *,
     cwd: str,
     allowed_tools: list[str] | None = None,
-    permission_mode: str = "default",
     max_turns: int | None = None,
 ) -> list:
-    """Create a list of LangChain tools that delegate work to Claude Code.
+    """Create a LangChain tool that delegates work to the ``claude`` CLI.
 
     Args:
-        cwd:              Working directory for Claude Code file operations.
-        allowed_tools:    Built-in Claude Code tools to enable (e.g. ``["Read", "Edit", "Bash"]``).
-                          Defaults to a safe read/write set.
-        permission_mode:  How Claude Code handles permission prompts.
-                          ``"default"`` prompts for destructive ops;
-                          ``"acceptEdits"`` auto-accepts file edits;
-                          ``"dontAsk"`` suppresses all prompts.
-        max_turns:        Maximum agent turns before stopping; ``None`` means unlimited.
+        cwd:           Working directory for Claude Code file operations.
+        allowed_tools: Built-in Claude Code tools to enable
+                       (e.g. ``["Read", "Edit", "Bash"]``).
+                       Defaults to a safe read/write set.
+        max_turns:     Maximum agent turns before stopping; ``None`` means
+                       the CLI default.
     """
-    _allowed_tools = allowed_tools or [
+    _allowed_tools: list[str] = allowed_tools or [
         "Read",
         "Write",
         "Edit",
@@ -36,7 +35,7 @@ def create_claudecode_tools(
     ]
 
     @tool
-    async def delegate_to_claude_code(
+    def delegate_to_claude_code(
         task: Annotated[str, "Complete task description to execute via Claude Code"],
     ) -> str:
         """Delegate a coding task to Claude Code and return its output.
@@ -46,35 +45,17 @@ def create_claudecode_tools(
         precise edits. Use this tool to perform any coding, analysis, or file
         manipulation tasks on the project.
         """
-        from claude_agent_sdk import (  # type: ignore[import-untyped]
-            CLIConnectionError,
-            CLINotFoundError,
-            ClaudeAgentOptions,
-            ResultMessage,
-            query,
-        )
-
-        options = ClaudeAgentOptions(
-            cwd=cwd,
-            allowed_tools=_allowed_tools,
-            permission_mode=permission_mode,
-        )
+        args: list[str] = [
+            "--print",
+            "--allowedTools", ",".join(_allowed_tools),
+            task,
+        ]
         if max_turns is not None:
-            options.max_turns = max_turns
+            args = ["--max-turns", str(max_turns)] + args
 
-        results: list[str] = []
         try:
-            async for message in query(prompt=task, options=options):
-                if isinstance(message, ResultMessage):
-                    results.append(message.result)
-        except CLINotFoundError:
-            return (
-                "Error: Claude Code CLI not found. "
-                "Install it with: npm install -g @anthropic-ai/claude-code"
-            )
-        except CLIConnectionError as exc:
-            return f"Error: Could not connect to Claude Code CLI: {exc}"
-
-        return "\n".join(results) if results else "Task completed with no textual output."
+            return run_command("claude", *args, cwd=cwd)
+        except RuntimeError as exc:
+            return f"Error running Claude Code: {exc}"
 
     return [delegate_to_claude_code]

@@ -1,10 +1,10 @@
 """Claude Code task delegation agent.
 
 This agent bridges the existing LangGraph/Gemini system with Claude Code,
-delegating implementation and analysis tasks to the Claude Code CLI via the
-Agent SDK.  The orchestrating LLM (Gemini / OpenAI) decides *what* to delegate
-and synthesises the final answer; Claude Code does the heavy lifting on the
-local filesystem.
+delegating implementation and analysis tasks to the ``claude`` CLI via its
+``--print`` (non-interactive) mode.  The orchestrating LLM (Gemini / OpenAI)
+decides *what* to delegate and synthesises the final answer; Claude Code does
+the heavy lifting on the local filesystem.
 
 Example::
 
@@ -17,19 +17,17 @@ Example::
 
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import SystemMessage
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
 
 from src.agents.base import BaseAgent
 from src.agents.claudecode.tools import create_claudecode_tools
 from src.core.llm import create_llm
-from src.core.logging import extract_content_blocks, get_logger
-from src.core.process import _current_agent, set_current_agent
+from src.core.logging import get_logger
 
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
@@ -53,10 +51,10 @@ Guidelines:
 
 
 class ClaudeCodeAgent(BaseAgent):
-    """Agent that delegates tasks to Claude Code via the Agent SDK.
+    """Agent that delegates tasks to the ``claude`` CLI (non-interactive mode).
 
-    One instance targets one working directory.  Claude Code is invoked as a
-    subprocess for each tool call and operates within ``cwd``.
+    One instance targets one working directory.  ``claude --print`` is invoked
+    as a subprocess for each tool call and operates within ``cwd``.
     """
 
     name: str = "claudecode"
@@ -69,7 +67,6 @@ class ClaudeCodeAgent(BaseAgent):
         *,
         cwd: str | None = None,
         allowed_tools: list[str] | None = None,
-        permission_mode: str = "default",
         max_turns: int | None = None,
         verbose: bool = False,
         session_id: str | None = None,
@@ -77,66 +74,19 @@ class ClaudeCodeAgent(BaseAgent):
         super().__init__(verbose=verbose, session_id=session_id)
         self.cwd = str(Path(cwd).resolve()) if cwd else str(Path.cwd())
         self.allowed_tools = allowed_tools
-        self.permission_mode = permission_mode
         self.max_turns = max_turns
 
     # ------------------------------------------------------------------
-    # BaseAgent overrides
+    # BaseAgent implementation
     # ------------------------------------------------------------------
 
     def _build_graph(self) -> "CompiledStateGraph":
-        # The graph is constructed with the resolved cwd, so this is safe
-        # to call once and cache (the default BaseAgent behaviour).
         tools = create_claudecode_tools(
             cwd=self.cwd,
             allowed_tools=self.allowed_tools,
-            permission_mode=self.permission_mode,
             max_turns=self.max_turns,
         )
-        return self._build_react_graph(tools)
 
-    def _run(self, message: str, **kwargs: Any) -> str:
-        """Run the agent inside a new event loop to support async tools."""
-        return asyncio.run(self._arun(message, **kwargs))
-
-    # ------------------------------------------------------------------
-    # Async core
-    # ------------------------------------------------------------------
-
-    async def _arun(self, message: str, **kwargs: Any) -> str:
-        """Invoke the compiled graph asynchronously."""
-        self._logger.info("Agent '{}' received: {!r}", self.name, message[:120])
-
-        graph = self._get_graph()
-        config = self._build_config(**kwargs)
-
-        token = set_current_agent(self.name)
-        try:
-            result = await graph.ainvoke(
-                {"messages": [HumanMessage(content=message)]},
-                config=config,
-            )
-        finally:
-            _current_agent.reset(token)
-
-        final_message = result["messages"][-1]
-        response: str = (
-            final_message.content
-            if isinstance(final_message.content, str)
-            else str(final_message.content)
-        )
-        self._logger.info(
-            "Agent '{}' replied: {}", self.name, extract_content_blocks(response)[:120]
-        )
-        self._log_token_usage(result["messages"])
-        return response
-
-    # ------------------------------------------------------------------
-    # Graph construction
-    # ------------------------------------------------------------------
-
-    def _build_react_graph(self, tools: list) -> "CompiledStateGraph":
-        """Build a ReAct graph with the Claude Code delegation tool."""
         llm = create_llm(verbose=self.verbose)
         llm_with_tools = llm.bind_tools(tools)
         tool_node = ToolNode(tools)
@@ -184,23 +134,16 @@ if __name__ == "__main__":
             help="Working directory for Claude Code (defaults to current directory).",
         )
         parser.add_argument(
-            "--permission-mode",
-            default="default",
-            choices=["default", "acceptEdits", "dontAsk"],
-            help="How Claude Code handles permission prompts (default: 'default').",
-        )
-        parser.add_argument(
             "--max-turns",
             type=int,
             default=None,
             metavar="N",
-            help="Maximum Claude Code agent turns per delegation (default: unlimited).",
+            help="Maximum Claude Code agent turns per delegation (default: CLI default).",
         )
 
     def _build_kwargs(args):
         return {
             "cwd": args.cwd,
-            "permission_mode": args.permission_mode,
             "max_turns": args.max_turns,
         }
 
