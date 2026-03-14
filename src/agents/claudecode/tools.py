@@ -47,14 +47,32 @@ def create_claudecode_tools(
         """
         args: list[str] = [
             "--print",
+            "--dangerously-skip-permissions",
+            "--no-session-persistence",
             "--allowedTools", ",".join(_allowed_tools),
-            task,
         ]
         if max_turns is not None:
             args = ["--max-turns", str(max_turns)] + args
 
+        # Unset env vars that cause claude to detect a nested session or
+        # try to connect back to the parent Claude desktop app.
+        _unset_for_subprocess: dict[str, str | None] = {
+            "CLAUDECODE": None,
+            "CLAUDE_CODE_ENTRYPOINT": None,
+            "CLAUDE_AGENT_SDK_VERSION": None,
+            "CLAUDE_CODE_ENABLE_ASK_USER_QUESTION_TOOL": None,
+            "CLAUDE_CODE_EMIT_TOOL_USE_SUMMARIES": None,
+            "CLAUDE_CODE_DISABLE_CRON": None,
+        }
         try:
-            return run_command("claude", *args, cwd=cwd)
+            return run_command(
+                "claude",
+                *args,
+                cwd=cwd,
+                env=_unset_for_subprocess,
+                stdin_input=task,
+                timeout=300,
+            )
         except RuntimeError as exc:
             return f"Error running Claude Code: {exc}"
 
