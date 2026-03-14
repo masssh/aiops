@@ -1,64 +1,30 @@
-"""mise environment configuration agent.
+"""mise environment configuration agent (Claude Code implementation).
 
-This agent wraps a LangGraph ReAct agent equipped with mise CLI tools for
-searching tools, listing remote versions, trusting configs, and configuring
-tool versions in projects.
+Delegates mise operations to the ``claude`` CLI using the ``mise`` skill
+defined in ``.claude/skills/mise/SKILL.md``.
 
 Example::
 
     from src.agents.mise.agent import MiseAgent
 
-    agent = MiseAgent()
+    agent = MiseAgent(project_path="./workspace/repos/my-project")
     response = agent.run("Search for available Node.js versions and use 20 in this project")
     print(response)
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from pathlib import Path
 
-from langchain_core.messages import SystemMessage
-from langgraph.graph import END, START, MessagesState, StateGraph
-from langgraph.prebuilt import ToolNode
-
-from src.agents.base import BaseAgent
-from src.agents.mise.tools import create_mise_tools
-from src.core.llm import create_llm
-from src.core.logging import get_logger
-
-if TYPE_CHECKING:
-    from langgraph.graph.state import CompiledStateGraph
-
-logger = get_logger(__name__)
-
-_SYSTEM_PROMPT_BASE = """\
-You are a mise environment configuration assistant.
-mise (https://mise.jdx.dev) is a polyglot tool version manager that manages
-runtime versions (Node.js, Python, Ruby, Go, etc.) on a per-project basis.
-
-You have access to the following tools:
-- search_tool: Search the mise registry for available tools by name or keyword.
-- list_remote_versions: List installable versions for a specific tool.
-- trust_config: Trust the project's mise.toml so mise can apply its settings.
-- use_tool: Install a tool at a given version and pin it in the project or globally.
-
-Guidelines:
-- Always use tools rather than guessing version numbers or tool names.
-- When the user asks to set up a tool, first confirm the tool exists via search_tool if unsure.
-- Use list_remote_versions to find a suitable version before calling use_tool.
-- If the user encounters permission or trust errors, suggest running trust_config for the project.
-- For use_tool, prefer pinning versions per-project (global_=False) unless the user explicitly asks for a global install.
-- When a version is unspecified, use 'latest' and inform the user.
-- All operations run in the project directory: {project_path}
-"""
+from src.agents.claude_base import ClaudeCodeBaseAgent
 
 
-def _build_system_prompt(project_path: str) -> str:
-    return _SYSTEM_PROMPT_BASE.format(project_path=project_path)
+class MiseAgent(ClaudeCodeBaseAgent):
+    """Agent specialised for mise environment configuration.
 
-
-class MiseAgent(BaseAgent):
-    """Agent specialised for mise environment configuration."""
+    Runs inside the project directory so that ``mise use`` commands pin versions
+    to the correct ``mise.toml``.  The skill has access to ``Bash`` only.
+    """
 
     name: str = "mise"
     description: str = "Search, list, trust, and configure tool versions via mise."
@@ -71,51 +37,18 @@ class MiseAgent(BaseAgent):
         session_id: str | None = None,
     ) -> None:
         super().__init__(verbose=verbose, session_id=session_id)
-        self.project_path = project_path
+        self.project_path = str(Path(project_path).resolve())
 
-    def _build_graph(self) -> "CompiledStateGraph":
-        """Build a LangGraph ReAct agent with mise tools."""
-        llm = create_llm(verbose=self.verbose)
-        mise_tools = create_mise_tools(self.project_path)
-        llm_with_tools = llm.bind_tools(mise_tools)
+    @property
+    def skill_name(self) -> str:
+        return "mise"
 
-        tool_node = ToolNode(mise_tools)
+    @property
+    def claude_allowed_tools(self) -> list[str]:
+        return ["Bash"]
 
-        # ----------------------------------------------------------------
-        # Nodes
-        # ----------------------------------------------------------------
-
-        system_prompt = _build_system_prompt(self.project_path)
-
-        def call_model(state: MessagesState) -> dict:  # type: ignore[type-arg]
-            messages = state["messages"]
-            if not any(isinstance(m, SystemMessage) for m in messages):
-                messages = [SystemMessage(content=system_prompt)] + messages
-            logger.debug("Calling LLM with {} messages", len(messages))
-            response = llm_with_tools.invoke(messages)
-            return {"messages": [response]}
-
-        def should_continue(state: MessagesState) -> str:
-            """Route to tool execution or end depending on last message."""
-            last = state["messages"][-1]
-            if hasattr(last, "tool_calls") and last.tool_calls:
-                logger.debug("Routing to tools: {}", [tc["name"] for tc in last.tool_calls])
-                return "tools"
-            return END
-
-        # ----------------------------------------------------------------
-        # Graph definition
-        # ----------------------------------------------------------------
-
-        graph = StateGraph(MessagesState)
-        graph.add_node("mise_agent", call_model)
-        graph.add_node("tools", tool_node)
-
-        graph.add_edge(START, "mise_agent")
-        graph.add_conditional_edges("mise_agent", should_continue, {"tools": "tools", END: END})
-        graph.add_edge("tools", "mise_agent")
-
-        return graph.compile()
+    def _get_cwd(self) -> str:
+        return self.project_path
 
 
 if __name__ == "__main__":

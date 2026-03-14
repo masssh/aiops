@@ -1,7 +1,7 @@
-"""SBOM analysis agent.
+"""SBOM analysis agent (Claude Code implementation).
 
-This agent wraps a LangGraph ReAct agent equipped with cdxgen-backed tools for
-generating and analysing Software Bill of Materials (SBOM) for a repository.
+Delegates SBOM operations to the ``claude`` CLI using the ``sbom`` skill
+defined in ``.claude/skills/sbom/SKILL.md``.
 
 Example::
 
@@ -15,50 +15,22 @@ Example::
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-from langchain_core.messages import SystemMessage
-from langgraph.graph import END, START, MessagesState, StateGraph
-from langgraph.prebuilt import ToolNode
-
-from src.agents.base import BaseAgent
-from src.agents.sbom.tools import create_sbom_tools
-from src.core.llm import create_llm
-from src.core.logging import get_logger
-
-if TYPE_CHECKING:
-    from langgraph.graph.state import CompiledStateGraph
-
-logger = get_logger(__name__)
-
-_SYSTEM_PROMPT_BASE = """\
-You are an SBOM (Software Bill of Materials) analysis assistant.
-You specialise in generating and analysing CycloneDX SBOMs for software projects
-using the cdxgen tool (https://cyclonedx.github.io/cdxgen).
-
-You have access to the following tools:
-- generate_sbom: Run cdxgen against the whole project and write the root SBOM to a JSON file.
-- list_application_components: Extract top-level executable components (type=application) from the SBOM.
-- generate_component_sboms: Extract per-component sbom.json for each sub-module by walking the dependency graph of the root SBOM.
-- get_application_dependencies: Read the per-component sbom.json files and return dependency PURLs grouped by component name.
-
-Guidelines:
-- Do NOT call generate_sbom unless the user explicitly requests SBOM generation, or a tool returns an error stating the SBOM file does not exist.
-- Use list_application_components to identify the root project and its sub-modules.
-- Use generate_component_sboms after generate_sbom to produce detailed per-component SBOMs containing full transitive dependency trees.
-- All operations run against the project directory: {project_path}
-"""
+from src.agents.claude_base import ClaudeCodeBaseAgent
 
 
-def _build_system_prompt(project_path: str) -> str:
-    return _SYSTEM_PROMPT_BASE.format(project_path=project_path)
+class SBOMAgent(ClaudeCodeBaseAgent):
+    """Agent specialised for SBOM generation and analysis via cdxgen.
 
-
-class SBOMAgent(BaseAgent):
-    """Agent specialised for SBOM generation and analysis via cdxgen."""
+    Passes the project path, repo name, and output directory as context so
+    the skill knows where to write artefacts.  The skill has access to
+    ``Bash`` (for cdxgen), ``Read`` (to inspect SBOM JSON), and ``Glob``.
+    """
 
     name: str = "sbom"
-    description: str = "Generate and analyse Software Bill of Materials (SBOM) for a repository using cdxgen."
+    description: str = (
+        "Generate and analyse Software Bill of Materials (SBOM) for a repository using cdxgen."
+    )
 
     def __init__(
         self,
@@ -68,52 +40,31 @@ class SBOMAgent(BaseAgent):
         session_id: str | None = None,
     ) -> None:
         super().__init__(verbose=verbose, session_id=session_id)
-        self.project_path = project_path
+        self.project_path = str(Path(project_path).resolve())
         self.repo_name: str = Path(project_path).name
 
-    def _build_graph(self) -> "CompiledStateGraph":
-        """Build a LangGraph ReAct agent with SBOM tools."""
-        llm = create_llm(verbose=self.verbose)
-        sbom_tools = create_sbom_tools(self.project_path, self.repo_name)
-        llm_with_tools = llm.bind_tools(sbom_tools)
+    @property
+    def skill_name(self) -> str:
+        return "sbom"
 
-        tool_node = ToolNode(sbom_tools)
+    @property
+    def claude_allowed_tools(self) -> list[str]:
+        return ["Bash", "Read", "Glob"]
 
-        # ----------------------------------------------------------------
-        # Nodes
-        # ----------------------------------------------------------------
+    def _get_cwd(self) -> str:
+        return self.project_path
 
-        system_prompt = _build_system_prompt(self.project_path)
+    def _build_task_prompt(self, task: str) -> str:
+        from src.core.project import get_project_config
 
-        def call_model(state: MessagesState) -> dict:  # type: ignore[type-arg]
-            messages = state["messages"]
-            if not any(isinstance(m, SystemMessage) for m in messages):
-                messages = [SystemMessage(content=system_prompt)] + messages
-            logger.debug("Calling LLM with {} messages", len(messages))
-            response = llm_with_tools.invoke(messages)
-            return {"messages": [response]}
-
-        def should_continue(state: MessagesState) -> str:
-            """Route to tool execution or end depending on last message."""
-            last = state["messages"][-1]
-            if hasattr(last, "tool_calls") and last.tool_calls:
-                logger.debug("Routing to tools: {}", [tc["name"] for tc in last.tool_calls])
-                return "tools"
-            return END
-
-        # ----------------------------------------------------------------
-        # Graph definition
-        # ----------------------------------------------------------------
-
-        graph = StateGraph(MessagesState)
-        graph.add_node("sbom_agent", call_model)
-        graph.add_node("tools", tool_node)
-
-        graph.add_edge(START, "sbom_agent")
-        graph.add_conditional_edges("sbom_agent", should_continue, {"tools": "tools", END: END})
-        graph.add_edge("tools", "sbom_agent")
-
-        return graph.compile()
+        cfg = get_project_config()
+        output_dir = cfg.repo_output_dir(self.repo_name)
+        return (
+            f"project_path={self.project_path}\n"
+            f"repo_name={self.repo_name}\n"
+            f"output_dir={output_dir}\n\n"
+            f"{task}"
+        )
 
 
 if __name__ == "__main__":

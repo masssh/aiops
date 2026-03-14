@@ -1,10 +1,7 @@
-"""Claude Code task delegation agent.
+"""Claude Code task delegation agent (Claude Code implementation).
 
-This agent bridges the existing LangGraph/Gemini system with Claude Code,
-delegating implementation and analysis tasks to the ``claude`` CLI via its
-``--print`` (non-interactive) mode.  The orchestrating LLM (Gemini / OpenAI)
-decides *what* to delegate and synthesises the final answer; Claude Code does
-the heavy lifting on the local filesystem.
+Delegates coding and file-system tasks to the ``claude`` CLI using the
+``claudecode`` skill defined in ``.claude/skills/claudecode/SKILL.md``.
 
 Example::
 
@@ -18,43 +15,24 @@ Example::
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-from langchain_core.messages import SystemMessage
-from langgraph.graph import END, START, MessagesState, StateGraph
-from langgraph.prebuilt import ToolNode
-
-from src.agents.base import BaseAgent
-from src.agents.claudecode.tools import create_claudecode_tools
-from src.core.llm import create_llm
-from src.core.logging import get_logger
-
-if TYPE_CHECKING:
-    from langgraph.graph.state import CompiledStateGraph
-
-logger = get_logger(__name__)
-
-_SYSTEM_PROMPT = """\
-You are an AI assistant that delegates coding and file-system tasks to Claude Code,
-a specialised coding agent with direct access to the local project.
-
-You have one tool available: `delegate_to_claude_code`.  Use it to hand off any task
-that involves reading, writing, or analysing files in the project directory.
-
-Guidelines:
-- Formulate a clear, self-contained task description before delegating.
-- If the user's request requires multiple independent steps, you may call the tool
-  several times in sequence and combine the results.
-- Summarise the outcome concisely once all delegated tasks are complete.
-- If a delegated task fails, report the error and suggest a corrective action.
-"""
+from src.agents.claude_base import ClaudeCodeBaseAgent
 
 
-class ClaudeCodeAgent(BaseAgent):
-    """Agent that delegates tasks to the ``claude`` CLI (non-interactive mode).
+class ClaudeCodeAgent(ClaudeCodeBaseAgent):
+    """General-purpose coding agent that delegates tasks to the ``claude`` CLI.
 
-    One instance targets one working directory.  ``claude --print`` is invoked
-    as a subprocess for each tool call and operates within ``cwd``.
+    One instance targets one working directory.  All file operations and shell
+    commands run inside ``cwd``.
+
+    Args:
+        cwd:           Working directory for Claude Code file operations.
+                       Defaults to the current directory.
+        allowed_tools: Built-in Claude Code tools to enable.
+                       Defaults to a safe read/write/execute set.
+        max_turns:     Maximum agent turns; ``None`` uses the CLI default.
+        verbose:       Enable verbose LangGraph logging.
+        session_id:    Optional session ID for Langfuse tracing.
     """
 
     name: str = "claudecode"
@@ -72,55 +50,31 @@ class ClaudeCodeAgent(BaseAgent):
         session_id: str | None = None,
     ) -> None:
         super().__init__(verbose=verbose, session_id=session_id)
-        self.cwd = str(Path(cwd).resolve()) if cwd else str(Path.cwd())
-        self.allowed_tools = allowed_tools
-        self.max_turns = max_turns
+        self._cwd = str(Path(cwd).resolve()) if cwd else str(Path.cwd())
+        self._allowed_tools = allowed_tools or [
+            "Read",
+            "Write",
+            "Edit",
+            "Bash",
+            "Glob",
+            "Grep",
+        ]
+        self._max_turns = max_turns
 
-    # ------------------------------------------------------------------
-    # BaseAgent implementation
-    # ------------------------------------------------------------------
+    @property
+    def skill_name(self) -> str:
+        return "claudecode"
 
-    def _build_graph(self) -> "CompiledStateGraph":
-        tools = create_claudecode_tools(
-            cwd=self.cwd,
-            allowed_tools=self.allowed_tools,
-            max_turns=self.max_turns,
-        )
+    @property
+    def claude_allowed_tools(self) -> list[str]:
+        return self._allowed_tools
 
-        llm = create_llm(verbose=self.verbose)
-        llm_with_tools = llm.bind_tools(tools)
-        tool_node = ToolNode(tools)
+    @property
+    def claude_max_turns(self) -> int | None:
+        return self._max_turns
 
-        def call_model(state: MessagesState) -> dict:  # type: ignore[type-arg]
-            messages = state["messages"]
-            if not any(isinstance(m, SystemMessage) for m in messages):
-                messages = [SystemMessage(content=_SYSTEM_PROMPT)] + messages
-            logger.debug("Calling LLM with {} messages", len(messages))
-            response = llm_with_tools.invoke(messages)
-            return {"messages": [response]}
-
-        def should_continue(state: MessagesState) -> str:
-            last = state["messages"][-1]
-            if hasattr(last, "tool_calls") and last.tool_calls:
-                logger.debug(
-                    "Routing to tools: {}", [tc["name"] for tc in last.tool_calls]
-                )
-                return "tools"
-            return END
-
-        graph = StateGraph(MessagesState)
-        graph.add_node("claudecode_agent", call_model)
-        graph.add_node("tools", tool_node)
-
-        graph.add_edge(START, "claudecode_agent")
-        graph.add_conditional_edges(
-            "claudecode_agent",
-            should_continue,
-            {"tools": "tools", END: END},
-        )
-        graph.add_edge("tools", "claudecode_agent")
-
-        return graph.compile()
+    def _get_cwd(self) -> str:
+        return self._cwd
 
 
 if __name__ == "__main__":
@@ -138,7 +92,7 @@ if __name__ == "__main__":
             type=int,
             default=None,
             metavar="N",
-            help="Maximum Claude Code agent turns per delegation (default: CLI default).",
+            help="Maximum Claude Code agent turns per invocation (default: CLI default).",
         )
 
     def _build_kwargs(args):
