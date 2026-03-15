@@ -166,6 +166,7 @@ class ClaudeCodeBaseAgent(BaseAgent, abc.ABC):
             )
             json.dump(mcp_config, mcp_tmpfile)
             mcp_tmpfile.flush()
+            mcp_tmpfile.close()
             args += ["--mcp-config", mcp_tmpfile.name]
 
         # Invoke the skill by prepending the slash-command to the task.
