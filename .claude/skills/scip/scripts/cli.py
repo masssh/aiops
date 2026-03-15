@@ -1,12 +1,13 @@
 """Standalone CLI for SCIP code intelligence operations.
 
-This module exposes the SCIP pipeline tools as a command-line interface so
-that the ``scip`` skill can invoke them as a plain Bash command rather than
-embedding Python code inline.
+This script lives inside the skill directory so that all skill-related code is
+co-located with its SKILL.md.  It adds the aiops project root to ``sys.path``
+automatically (4 levels up: scripts/ → scip/ → skills/ → .claude/ → aiops/).
 
-Usage::
+Usage (from any working directory)::
 
-    python -m src.agents.scip.cli <command> --project-path PATH --repo-name NAME [options]
+    python ${CLAUDE_SKILL_DIR}/scripts/cli.py <command> \
+        --project-path PATH --repo-name NAME [options]
 
 Commands
 --------
@@ -22,6 +23,16 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
+
+# ---------------------------------------------------------------------------
+# Path bootstrap: insert the aiops project root so that `src.*` imports work
+# regardless of the working directory when this script is called.
+# Layout: .claude/skills/scip/scripts/cli.py → parents[4] = aiops root
+# ---------------------------------------------------------------------------
+_AIOPS_ROOT = Path(__file__).resolve().parents[4]
+if str(_AIOPS_ROOT) not in sys.path:
+    sys.path.insert(0, str(_AIOPS_ROOT))
 
 
 def _get_tools(project_path: str, repo_name: str) -> dict:
@@ -84,10 +95,9 @@ def cmd_run_cypher(args: argparse.Namespace) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        prog="python -m src.agents.scip.cli",
+        prog="python ${CLAUDE_SKILL_DIR}/scripts/cli.py",
         description="SCIP code intelligence CLI",
     )
-    # Common arguments added to every sub-command
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--project-path", required=True, metavar="PATH",
                         help="Path to the repository directory.")
@@ -143,7 +153,7 @@ def main() -> None:
     p.add_argument("--query", required=True, metavar="CYPHER",
                    help="Read-only Cypher query string.")
     p.add_argument("--params", default="", metavar="JSON",
-                   help='Query parameters as a JSON object, e.g. \'{"repo": "name"}\'.')
+                   help='Query parameters as JSON object, e.g. \'{"repo": "name"}\'.')
     p.set_defaults(func=cmd_run_cypher)
 
     args = parser.parse_args()

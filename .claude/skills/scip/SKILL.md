@@ -11,29 +11,29 @@ You are a code intelligence analyst specialised in SCIP-based source code indexi
 The task description includes:
 - `project_path`: the repository directory to index
 - `repo_name`: the short name of the repository
-- `aiops_root`: path to the aiops project root
-- Neo4j connection details are in the `.env` file at `aiops_root`
+- Neo4j connection details are in the `.env` file at the aiops project root
 
 ## CLI Reference
 
-All operations use the SCIP CLI at `<aiops_root>/src/agents/scip/cli.py`.
-Run commands from `aiops_root` so that Python imports resolve correctly.
+All operations use the script at `${CLAUDE_SKILL_DIR}/scripts/cli.py`.
+The script bootstraps the Python path automatically, so it can be called from
+any working directory.
 
 ### Generate SCIP index
 
 ```bash
-python -m src.agents.scip.cli generate-index \
+python ${CLAUDE_SKILL_DIR}/scripts/cli.py generate-index \
   --project-path <project_path> \
   --repo-name <repo_name> \
   [--language python|typescript|java]  # auto-detected if omitted
 ```
 
-Language is detected automatically from project files (`pyproject.toml` → python, `package.json` → typescript, `pom.xml`/`build.gradle` → java).
+Language is detected from project files (`pyproject.toml` → python, `package.json` → typescript, `pom.xml`/`build.gradle` → java).
 
 ### Load index into Neo4j
 
 ```bash
-python -m src.agents.scip.cli load-to-neo4j \
+python ${CLAUDE_SKILL_DIR}/scripts/cli.py load-to-neo4j \
   --project-path <project_path> \
   --repo-name <repo_name> \
   [--index-path /path/to/index.scip]  # defaults to agent_output/
@@ -42,7 +42,7 @@ python -m src.agents.scip.cli load-to-neo4j \
 ### Detect code communities (Louvain algorithm)
 
 ```bash
-python -m src.agents.scip.cli find-communities \
+python ${CLAUDE_SKILL_DIR}/scripts/cli.py find-communities \
   --project-path <project_path> \
   --repo-name <repo_name>
 ```
@@ -50,7 +50,7 @@ python -m src.agents.scip.cli find-communities \
 ### List symbols in a community
 
 ```bash
-python -m src.agents.scip.cli get-community \
+python ${CLAUDE_SKILL_DIR}/scripts/cli.py get-community \
   --project-path <project_path> \
   --repo-name <repo_name> \
   --community-id <id> \
@@ -60,7 +60,7 @@ python -m src.agents.scip.cli get-community \
 ### Extract call graph entrypoints
 
 ```bash
-python -m src.agents.scip.cli extract-entrypoints \
+python ${CLAUDE_SKILL_DIR}/scripts/cli.py extract-entrypoints \
   --project-path <project_path> \
   --repo-name <repo_name>
 ```
@@ -68,7 +68,7 @@ python -m src.agents.scip.cli extract-entrypoints \
 ### Run ad-hoc Cypher query
 
 ```bash
-python -m src.agents.scip.cli run-cypher \
+python ${CLAUDE_SKILL_DIR}/scripts/cli.py run-cypher \
   --project-path <project_path> \
   --repo-name <repo_name> \
   --query 'MATCH (n:Symbol {repo: "<repo_name>"}) RETURN count(n)' \
@@ -78,7 +78,7 @@ python -m src.agents.scip.cli run-cypher \
 ## Guidelines
 
 - Do NOT generate a SCIP index if the user says one already exists.
-- Substitute `<project_path>`, `<repo_name>`, and `<aiops_root>` with the actual values from the task context.
+- Substitute `<project_path>` and `<repo_name>` with the actual values from the task context.
 - After entrypoint extraction, summarise the public API surface of the codebase.
 - When interpreting entrypoints, use file path + method name: `*Controller`/`*Resource` → HTTP endpoints; `*Application.main` → lifecycle entry; `*Tools`/`*Service` → AI tools or service interfaces.
 

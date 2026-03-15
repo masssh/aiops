@@ -29,7 +29,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from src.agents.claude_base import ClaudeCodeBaseAgent, _PROJECT_ROOT
+from src.agents.claude_base import ClaudeCodeBaseAgent
 
 
 class ScipAgent(ClaudeCodeBaseAgent):
@@ -68,20 +68,15 @@ class ScipAgent(ClaudeCodeBaseAgent):
 
     @property
     def claude_allowed_tools(self) -> list[str]:
-        # Bash: run SCIP indexers and Python snippets for Neo4j
-        # Read: inspect generated files
         return ["Bash", "Read"]
 
     def _get_cwd(self) -> str:
-        # Run from the aiops project root so Python imports resolve correctly
-        # when the skill invokes scip tools via `python -c ...`
-        return str(_PROJECT_ROOT)
+        return self.project_path
 
     def _build_task_prompt(self, task: str) -> str:
         return (
             f"project_path={self.project_path}\n"
-            f"repo_name={self.repo_name}\n"
-            f"aiops_root={_PROJECT_ROOT}\n\n"
+            f"repo_name={self.repo_name}\n\n"
             f"{task}"
         )
 
